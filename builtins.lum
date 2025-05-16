@@ -1,0 +1,52 @@
+class str {
+    constructor str (value){
+        set this.value to nativecode (r"str(" + packstr (value) + r")")
+    }
+
+    function @stringify (){
+        return this.value
+    }
+
+    function @addition (other){ 
+        return str (this.value + other.value)
+    }
+}
+
+class int {
+    constructor int (value){
+        set this.value to nativecode (r"int(" + packstr (value) + r")")
+    }
+
+    function @stringify (){
+        return str (this.value).value
+    }
+
+    function @addition (other){
+        if (&other == &this){
+            return int (nativecode (this.value + r" + " + other.value))
+        }
+        else {
+            return str (this.value + other.value)
+        }
+    }
+
+    function @division (other){
+        if (&other == &this){
+            return int (nativecode (this.value + r" / " + other.value))
+        }
+        else {
+            return nativecode (r"None")
+        }
+    }
+}
+
+function show (data){
+    nativecode ("print(" + str (packstr (data)) + ")")
+}
+
+function input (prompt){
+    set inpt to str (nativecode ("input(" + str (packstr (prompt)) + ")"))
+    return inpt
+}
+
+set @file to str (nativecode ("filename"))
