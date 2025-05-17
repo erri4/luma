@@ -27,7 +27,7 @@ TODO:
 ONLY when finished: self.keywords: [...] (not setable)
 '''
 class LumaInterpreter:
-    LOGICAL_OPERATORS: list[str] = [' == ', ' =< ', ' >= ', ' > ', ' < ', ' in ', 'not ', ' and ', ' or ']
+    LOGICAL_OPERATORS: list[str] = [' == ', ' =< ', ' >= ', ' > ', ' < ', 'not ', ' and ', ' or ']
     OPERATORS: dict[str, str] = {
         '-': '@subtraction',
         '+': '@addition',
@@ -53,42 +53,15 @@ class LumaInterpreter:
 
 
     def run(self, program: str, filename: str):
+        self.filename = filename
+        self.linenums = {filename: 1}
         self.scopes: list[str] = [program]
         self.runimport('builtins.lum')
         linenum = 1
         for line in program.splitlines():
             self.process(line, linenum - 1)
             linenum += 1
-            '''except LumaInterpreter.LumaNameError as e:
-                print(f'File "{filename}", line {linenum}')
-                print(f'    {line}')
-                print(e)
-                break'''
-            '''except LumaInterpreter.LumaSyntaxError as e:
-                print(f'File "{filename}", line {linenum}')
-                print(f'    {line}')
-                print(e)
-                break'''
-            '''except LumaInterpreter.LumaAttributeError as e:
-                print(f'File "{filename}", line {linenum}')
-                print(f'    {line}')
-                print(e)
-                break'''
-            '''except LumaInterpreter.LumaTypeError as e:
-                print(f'File "{filename}", line {linenum}')
-                print(f'    {line}')
-                print(e)
-                break'''
-            '''except LumaInterpreter.LumaException as e:
-                print(f'File "{filename}", line {linenum}')
-                print(f'    {line}')
-                print(e)
-                break'''
-            '''except Exception as e:
-                print(f'File "{filename}", line {linenum}')
-                print(f'    {line}')
-                print(e)
-                break'''
+            self.linenums[filename] += 1
     
 
     def getfirstword(self, line: str):
@@ -119,11 +92,14 @@ class LumaInterpreter:
         try:
             with open(module) as imported:
                 linen = 1
+                self.linenums[module] = 1
                 subprogram = imported.read()
                 self.scopes.append(subprogram)
                 for subline in subprogram.splitlines():
                     self.process(subline, linen)
                     linen += 1
+                    self.linenums[module] += 1
+                del self.linenums[module]
                 self.scopes.pop()
         except FileNotFoundError:
             raise LumaInterpreter.LumaModuleNotFoundError(f"No module named '{module}'")
@@ -138,9 +114,10 @@ class LumaInterpreter:
             subprogram[i] = self.removetab(subprogram[i])
         subprogram = '\n'.join(subprogram)
         self.scopes.append(subprogram)
+        res = None
         for subline in subprogram.splitlines():
             res = self.process(subline, linen, Object)
-            if subline.startswith('return'):
+            if res:
                 break
             linen += 1
         self.scopes.pop()
@@ -265,19 +242,21 @@ class LumaInterpreter:
                             break
                     stop += len(linee) + 1
                 elsebody = a[a.find('{') + 2:stop].strip()
+            r = None
             if eval(condition):
-                self.runsubprogram(body)
+                r = self.runsubprogram(body)
             else:
                 foundelif = False
                 for i in range(len(conditions)):
                     con = conditions[i]
                     bd: str = bodys[i]
                     if eval(con):
-                        self.runsubprogram(bd)
+                        r = self.runsubprogram(bd)
                         foundelif = True
                         break
                 if not foundelif:
-                    self.runsubprogram(elsebody)
+                    r = self.runsubprogram(elsebody)
+            return r
         elif line.startswith('while'):
             condition = line[7:line.find('){')]
             a = "\n".join(program.splitlines()[linenum - 1:])
@@ -295,7 +274,7 @@ class LumaInterpreter:
         elif line.startswith('return'):
             value = line[7:]
             return self.evaluate(value.strip())
-        elif line.startswith('//') or line == '' or line.startswith(' ') or line == '}' or line.startswith('elseif') or line.startswith('else'):
+        elif line.startswith('//') or line.strip() == '' or line.startswith(' ') or line == '}' or line.startswith('elseif') or line.startswith('else'):
             pass
         elif line.count('.') == 1 and self.getfirstword(line).split('.')[0] in self.vars.keys():
             dexpr = self.getfirstword(line)
@@ -429,7 +408,7 @@ class LumaInterpreter:
                         opstrr = self.evaluate(opstr)
                         return opstrr
                     else:
-                        raise LumaInterpreter.LumaTypeError(f"unsupported opertaor: unable to perform operator {op} on types '{self.evaluate(f'&{term0}')}' and '{self.evaluate(f"&{f' {op} '.join(terms[1:])}")}'")
+                        raise LumaInterpreter.LumaTypeError(f"unsupported opertaor: unable to perform operator {op} on types '{self.evaluate(f'&{terms[0]}')}' and '{self.evaluate(f"&{f' {op} '.join(terms[1:])}")}'")
                 for term in terms:
                     res += str(self.evaluate(term))
                 return res
@@ -480,6 +459,11 @@ class LumaInterpreter:
                 return r
             else:
                 raise LumaInterpreter.LumaTypeError(f"function '{self.getfirstword(expr)}' expected {len(self.functions[self.getfirstword(expr)].args)} arguments but got {len(args)}")
+        elif expr.startswith('(') and expr.endswith(')'):
+            try:
+                return self.evaluate(expr[1:-1])
+            except Exception:
+                return None
         else:
             raise LumaInterpreter.LumaNameError(f"undefined variable '{expr}'")
 
@@ -601,11 +585,7 @@ def get_current_interpreter() -> (LumaInterpreter | None):
 
 def log(*texts):
         with open('log.txt', 'a') as log:
-            text = ''
-            for txt in texts:
-                if type(text) == str:
-                    text += str(txt) + ', '
-            log.write(text[:-2] + '\n')
+            log.write(', '.join(texts) + '\n')
 
 
 if __name__ == '__main__':

@@ -1,47 +1,43 @@
-class str {
-    constructor str (value){
-        set this.value to nativecode (r"str(" + packstr (value) + r")")
-    }
-
-    function @stringify (){
-        return this.value
-    }
-
-    function @addition (other){ 
-        return str (this.value + other.value)
+class valuedObject {
+    constructor valuedObject (value){
+        set this.value to value
     }
 }
 
-class int {
-    constructor int (value){
-        set this.value to nativecode (r"int(" + packstr (value) + r")")
-    }
-
+class str (valuedObject) {
     function @stringify (){
-        return str (this.value).value
+        return nativecode (r"str(" + packstr (this.value) + r")")
     }
 
     function @addition (other){
-        if (&other == &this){
-            return int (nativecode (this.value + r" + " + other.value))
-        }
-        else {
-            return str (this.value + other.value)
-        }
+        return str (this.value + str (other).value)
+    }
+}
+
+class int (valuedObject) {
+    function @stringify (){
+        return nativecode (r"str(" + packstr (this.value) + r")")
+    }
+
+    function @addition (other){
+        return int (nativecode (this.value + r" + " + other.value))
     }
 
     function @division (other){
-        if (&other == &this){
-            return int (nativecode (this.value + r" / " + other.value))
-        }
-        else {
-            return nativecode (r"None")
-        }
+        return int (nativecode (this.value + r" / " + other.value))
+    }
+
+    function @subtraction (other){
+        return int (nativecode (this.value + r" - " + other.value))
+    }
+
+    function @multiplication (other){
+        return int (nativecode (this.value + r" * " + other.value))
     }
 }
 
 function show (data){
-    nativecode ("print(" + str (packstr (data)) + ")")
+    nativecode ("print(" + str (packstr (str (data))) + ")")
 }
 
 function input (prompt){
