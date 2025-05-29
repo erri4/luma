@@ -6,7 +6,6 @@ import json
 import copy
 import re
 import os
-import this
 
 
 ###################################################
