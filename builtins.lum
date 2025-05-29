@@ -2,21 +2,29 @@ class valuedObject {
     constructor valuedObject (value){
         set this.value to value
     }
+
+    function @stringify (){
+        return nativecode (r"str(" + packstr (this.value) + r")")
+    }
 }
 
 class str (valuedObject) {
-    function @stringify (){
-        return nativecode (r"str(" + packstr (this.value) + r")")
+    constructor str (value){
+        set this.value to nativecode (r"str(" + packstr (value) + r")")
     }
 
     function @addition (other){
         return str (this.value + str (other).value)
     }
+
+    function @multiplication (other){
+        return str (nativecode (packstr (this.value) + r" * " + other.value))
+    }
 }
 
 class int (valuedObject) {
-    function @stringify (){
-        return nativecode (r"str(" + packstr (this.value) + r")")
+    constructor int (value){
+        set this.value to nativecode (r"int(" + packstr (value) + r")")
     }
 
     function @addition (other){
@@ -24,7 +32,7 @@ class int (valuedObject) {
     }
 
     function @division (other){
-        return int (nativecode (this.value + r" / " + other.value))
+        return float (nativecode (this.value + r" / " + other.value))
     }
 
     function @subtraction (other){
@@ -36,12 +44,44 @@ class int (valuedObject) {
     }
 }
 
+class float (valuedObject) {
+    constructor float (value){
+        set this.value to nativecode (r"float(" + packstr (value) + r")")
+    }
+
+    function @addition (other){
+        return float (nativecode (this.value + r" + " + other.value))
+    }
+
+    function @division (other){
+        return float (nativecode (this.value + r" / " + other.value))
+    }
+
+    function @subtraction (other){
+        return float (nativecode (this.value + r" - " + other.value))
+    }
+
+    function @multiplication (other){
+        return float (nativecode (this.value + r" * " + other.value))
+    }
+}
+
+/* class dict (valuedObject) {
+    function at (pos) {
+        return nativecode (str (this.value) + "[]")
+    }
+
+    function set (pos, value) {
+
+    }
+} */
+
 function show (data){
     nativecode ("print(" + str (packstr (str (data))) + ")")
 }
 
 function input (prompt){
-    set inpt to str (nativecode ("input(" + str (packstr (prompt)) + ")"))
+    set inpt to str (nativecode ("input(" + str (packstr (str (prompt))) + ")"))
     return inpt
 }
 

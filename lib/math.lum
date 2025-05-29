@@ -1,0 +1,7 @@
+class @libContainer {
+    constructor @libContainer (){
+        set this.pi to 3.141592653589793
+    }
+}
+
+set math to @libContainer ()
