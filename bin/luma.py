@@ -1,5 +1,6 @@
-import sys
 from interpreter import LumaInterpreter
+import sys
+
 
 if __name__ == '__main__':
     filename = sys.argv[1]

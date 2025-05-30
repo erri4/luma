@@ -11,23 +11,20 @@ import os
 ###################################################
 '''
 TODO:
+OPTIMIZE
 GOAL: . add full builtin classes
 
 . realvalue (includelist)
 
-(. InstancedLumaObject
-
-. seperate cmd logic and interpreter files
-
-. stop (break) keyword, again (continue)
+(. stop (break) keyword, again (continue)
 
 . throwing errors)
 
 . lists (str and int length)
 
-. better cond eval
-
 . dictinaries
+
+. handlin errors (interpreter AND luma)
 
 ONLY when finished: self.keywords: [...] (not setable)
 
@@ -61,11 +58,15 @@ class LumaInterpreter:
             r = eval(str(pytext), globs)
             return r
         
-        def packstr(string):
-            r = json.dumps(str(string))
+        def packvalue(string):
+            if not self.isnumber(string):
+                r = json.dumps(str(string))
+            else:
+                r = str(string)
             return r
+        
         self.functions['nativecode'] = self.LumaFunction('nativecode', ['pytext'], nativecode, self.glob)
-        self.functions['packstr'] = self.LumaFunction('packstr', ['string'], packstr, self.glob)
+        self.functions['packvalue'] = self.LumaFunction('packvalue', ['string'], packvalue, self.glob)
         program = self.preprocess(program)
         self.filename = filename
         self.scopes: list[str] = [program]
@@ -87,11 +88,7 @@ class LumaInterpreter:
     
 
     def reverse_list(self, r):
-        vvc = []
-        if type(r) == list:
-            for uy in range(len(r) - 1, -1, -1):
-                vvc.insert(len(vvc), r[uy])
-        return vvc
+        return r[::-1] if isinstance(r, list) else []
     
 
     def realvalue(self, expr: str):
@@ -365,11 +362,11 @@ class LumaInterpreter:
             if part in self.LOGICAL_OPERATORS:
                 r.append(part)
             else:
-                r.append(json.dumps(self.evaluate(part)))
+                r.append(self.functions['packvalue'].body(self.evaluate(part)))
         return ''.join(r)
     
 
-    def splitbyop(self, expr):
+    def splitbyop(self, expr: str):
         pattern = r'\s*(' + '|'.join(re.escape(op) for op in self.LOGICAL_OPERATORS) + r')\s*'
 
         tokens = []
@@ -428,20 +425,36 @@ class LumaInterpreter:
     
 
     def smrtsplt(self, expr: str, sep: str):
-        parts = expr.split(sep)
+        parts = []
+        current = []
+        stack = []
+        in_quotes = False
         i = 0
-        while i < len(parts):
-            part = parts[i]
-            if not self.termisclosed(part):
-                parts[i] = sep.join(parts[i:i + 2])
-                del parts[i + 1]
-                continue
+        while i < len(expr):
+            c = expr[i]
+            if c == '"':
+                in_quotes = not in_quotes
+                current.append(c)
+            elif not in_quotes and c in '([{':
+                stack.append(c)
+                current.append(c)
+            elif not in_quotes and c in ')]}':
+                if stack:
+                    stack.pop()
+                current.append(c)
+            elif not in_quotes and not stack and expr[i:i+len(sep)] == sep:
+                parts.append(''.join(current))
+                current = []
+                i += len(sep) - 1
+            else:
+                current.append(c)
             i += 1
-
+        if current:
+            parts.append(''.join(current))
         return parts
 
 
-    def evaluate(self, expr: str, evalforwhat = None, cond = False):
+    def evaluate(self, expr: str, evalforwhat = None):
         if not evalforwhat:
             evalforwhat = self.generaterandomvarname()
         
@@ -468,6 +481,8 @@ class LumaInterpreter:
             return self.evaluate(f'float (r"{expr}")' if '.' in expr else f'int (r"{expr}")', evalforwhat)
         elif expr.startswith('"') and expr.endswith('"') and not '"' in expr[1:-1]:
             return self.evaluate(f'str (r"{expr[1:-1]}")', evalforwhat)
+        elif expr.startswith("'") and expr.endswith("'") and not "'" in expr[1:-1]:
+            return self.evaluate(f'str (r"{expr[1:-1]}")', evalforwhat)
         elif expr in self.vars.keys():
             return self.vars[expr]
         elif expr[0] == '&':
@@ -483,7 +498,7 @@ class LumaInterpreter:
                 instancename += '.' + expr.split('.')[i]
             propertyname = self.getfirstword(expr.split('.')[i + 1])
             instance = None
-            instance: LumaInterpreter.IntancedLumaObject = copy.deepcopy(self.evaluate(instancename))
+            instance: LumaInterpreter.IntancedLumaObject = self.evaluate(instancename)
             if instance:
                 if propertyname in instance.vars.keys():
                     return instance.vars[propertyname]
@@ -501,7 +516,7 @@ class LumaInterpreter:
             args = self.extractargs(expr.strip(), self.getfirstword(expr.strip()))
             if len(args) == len(self.classes[self.getfirstword(expr.strip())].functions['constructor'].args):
                 instance = self.classes[self.getfirstword(expr.strip())].instance(args, evalforwhat)
-                return instance
+                return copy.deepcopy(instance)
             else:
                 raise LumaInterpreter.LumaTypeError(f"function '{self.getfirstword(expr)}.constructor' expected {len(self.classes[self.getfirstword(expr.strip())].functions['constructor'].args)} arguments but got {len(args)}")
         elif self.getfirstword(expr) in self.functions.keys():
