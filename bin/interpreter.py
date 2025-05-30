@@ -24,7 +24,7 @@ GOAL: . add full builtin classes
 
 . dictinaries
 
-. handlin errors (interpreter AND luma)
+. handling errors (interpreter AND luma)
 
 ONLY when finished: self.keywords: [...] (not setable)
 
@@ -466,10 +466,10 @@ class LumaInterpreter:
             if f' {op} ' in expr and len(self.smrtsplt(expr, f' {op} ')) > 1:
                 res = ''
                 terms = self.smrtsplt(expr, f' {op} ')
-                term0 = self.evaluate(terms[0])
+                term0 = self.evaluate(f' {op} '.join(terms[:-1]))
                 if type(term0) == LumaInterpreter.IntancedLumaObject:
                     if self.OPERATORS[op] in term0.functions:
-                        opstr = f'{terms[0]}.{self.OPERATORS[op]} ({f' {op} '.join(terms[1:])})'
+                        opstr = f'({f' {op} '.join(terms[:-1])}).{self.OPERATORS[op]} ({terms[-1]})'
                         opstrr = self.evaluate(opstr)
                         return opstrr
                     else:
@@ -523,6 +523,7 @@ class LumaInterpreter:
             args = self.extractargs(expr.strip(), self.getfirstword(expr))
             if len(args) == len(self.functions[self.getfirstword(expr.strip())].args):
                 r = self.functions[self.getfirstword(expr.strip())].run(args)
+                print(f"expr: {expr} args[0]: {args[0]} r: {r}")
                 return r
             else:
                 raise LumaInterpreter.LumaTypeError(f"function '{self.getfirstword(expr)}' expected {len(self.functions[self.getfirstword(expr)].args)} arguments but got {len(args)}")

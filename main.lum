@@ -4,4 +4,4 @@ dct.set (1, "t")
 show (dct.at (1))
 show (dct.at (0)) */
 
-show ('working')
+show ("hi".len)
