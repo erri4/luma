@@ -1,6 +1,7 @@
 from types import FunctionType, ModuleType
-from typing import Any
 from io import TextIOWrapper
+from typing import Any
+import operator
 import sys
 import json
 import copy
@@ -16,13 +17,17 @@ GOAL: . add full builtin classes
 
 . realvalue (includelist)
 
-(. stop (break) keyword, again (continue)
+(. better importing (maybe module class?)
+
+. stop (break) keyword, again (continue)
 
 . throwing errors)
 
-. lists (str and int length)
-
 . dictinaries
+
+. lists
+
+. importing py
 
 . handling errors (interpreter AND luma)
 
@@ -31,13 +36,21 @@ ONLY when finished: self.keywords: [...] (not setable)
 . luma extentions (for loops and stuff)
 '''
 class LumaInterpreter:
-    LOGICAL_OPERATORS: list[str] = [' == ', ' =< ', ' >= ', ' > ', ' < ', 'not ', ' and ', ' or ']
+    LOGICAL_OPERATORS: list[str] = [' == ', ' <= ', ' =< ', ' >= ', ' > ', ' < ', 'not ', ' and ', ' or ']
     OPERATORS: dict[str, str] = {
         '-': '@subtraction',
         '+': '@addition',
         '/': '@division',
         '*': '@multiplication',
     }
+    REAL_OPERATORS: dict[str, FunctionType] = {
+        '+': operator.add,
+        '-': operator.sub,
+        '*': operator.mul,
+        '/': operator.truediv,
+    }
+    NUMBER_RE = re.compile(r"^[+-]?\d+(\.\d+)?$")
+    LOGICAL_OP_RE = re.compile(r'\s*(' + '|'.join(re.escape(op) for op in LOGICAL_OPERATORS) + r')\s*')
 
 
     def __init__(self):
@@ -48,9 +61,9 @@ class LumaInterpreter:
 
 
     def run(self, program: str, filename: str, glob: dict[str, Any]):
-        for k in list(glob.keys()):
-            if type(glob[k]) == ModuleType or type(glob[k]) == TextIOWrapper:
-                del glob[k]
+        for key in list(glob.keys()):
+            if type(glob[key]) == TextIOWrapper or type(glob[key]) == ModuleType:
+                del glob[key]
         self.glob = glob
 
         def nativecode(pytext):
@@ -59,22 +72,15 @@ class LumaInterpreter:
             return r
         
         def packvalue(string):
-            if not self.isnumber(string):
-                r = json.dumps(str(string))
-            else:
-                r = str(string)
+            r = json.dumps(str(string))
             return r
         
-        self.functions['nativecode'] = self.LumaFunction('nativecode', ['pytext'], nativecode, self.glob)
-        self.functions['packvalue'] = self.LumaFunction('packvalue', ['string'], packvalue, self.glob)
-        program = self.preprocess(program)
+        self.functions['nativecode'] = self.LumaFunction('nativecode', [{'name':'pytext'}], nativecode, self.glob)
+        self.functions['packvalue'] = self.LumaFunction('packvalue', [{'name': 'string'}], packvalue, self.glob)
         self.filename = filename
         self.scopes: list[str] = [program]
         self.runimport(':builtins.lum')
-        linenum = 1
-        for line in program.splitlines():
-            self.process(line, linenum - 1)
-            linenum += 1
+        self.runsubprogram(program, infunc=False)
     
 
     def getfirstword(self, line: str):
@@ -84,7 +90,7 @@ class LumaInterpreter:
     def isnumber(self, data: str | int | float):
         if type(data) in [int, float]: return True
         if type(data) != str: return False
-        return bool(re.match(r"^[+-]?\d+(\.\d+)?$", data))
+        return bool(re.match(self.NUMBER_RE, data))
     
 
     def reverse_list(self, r):
@@ -135,7 +141,7 @@ class LumaInterpreter:
     
 
     def generaterandomvarname(self):
-        varname = '@sysvar'
+        varname = '@tmpsysvar'
         while varname in self.vars.keys():
             varname += 'donottouch'
         return varname
@@ -156,7 +162,6 @@ class LumaInterpreter:
         except FileNotFoundError:
             raise LumaInterpreter.LumaModuleNotFoundError(f"No module named '{module}'")
     
-
     def runsubprogram(self, subprogram: str, Object = None, infunc: bool = True):
         if Object == None:
             Object = self
@@ -175,7 +180,7 @@ class LumaInterpreter:
                 break
             linen += 1
         self.scopes.pop()
-        return res if res else None
+        return res
 
     
     def process(self, line: str, linenum: int, Object = None):
@@ -190,9 +195,7 @@ class LumaInterpreter:
         program = self.scopes[-1]
         if line.startswith('function'):
             func_name = line[9:line.find(' (')]
-            args = line[line.find(' (') + 2:line.find(')')].split(', ')
-            if args == ['']:
-                args = []
+            args = self.parse_args(line[line.find(' (') + 2:line.find(')')])
             a = program[program.find(f'{func_name} (') + len(func_name) + 2:]
             stop = len(a[:a.find('){') + 3])
             for linee in a[a.find('){') + 3:].splitlines():
@@ -216,16 +219,18 @@ class LumaInterpreter:
             if '(' in class_name and ')' in class_name:
                 parent = class_name[class_name.find('(') + 1:class_name.find(')')]
                 class_name = class_name[:class_name.find('(') - 1]
-                self.classes[class_name] = copy.deepcopy(self.classes[parent])
+                self.classes[class_name] = copy.copy(self.classes[parent])
+                self.classes[class_name].functions = dict(self.classes[parent].functions)
+                self.classes[class_name].vars = dict(self.classes[parent].vars)
+                self.classes[class_name].parents = list(self.classes[parent].parents)
+                self.classes[class_name].parents.append(parent)
                 self.classes[class_name].name = class_name
             else:
                 self.classes[class_name] = self.LumaClass(class_name, self.glob)
             self.runsubprogram(body, self.classes[class_name])
         elif line.startswith('constructor'):
             class_name = line[12:line.find(' (')]
-            args = line[line.find(' (') + 2:line.find(')')].split(', ')
-            if args == ['']:
-                args = []
+            args = self.parse_args(line[line.find(' (') + 2:line.find(')')])
             a = program[program.find(f'{class_name} (') + len(class_name) + 2:]
             stop = len(a[:a.find('){') + 3])
             for linee in a[a.find('){') + 3:].splitlines():
@@ -250,7 +255,7 @@ class LumaInterpreter:
             else:
                 varis[varname] = value
         elif line.startswith('import'):
-            module = line[7:]
+            module = self.getfirstword(line[7:])
             self.runimport(module)
         elif line.startswith('if'):
             condition = line[4:line.find('){')]
@@ -328,7 +333,8 @@ class LumaInterpreter:
                 processedcondition = self.processcondition(condition)
         elif line.startswith('return'):
             value = line[7:]
-            return self.evaluate(value.strip())
+            r = self.evaluate(value.strip())
+            return r
         elif line.strip() == '' or line.startswith(' ') or line == '}' or line.startswith('elseif') or line.startswith('else'):
             pass
         elif line.count('.') == 1 and self.getfirstword(line).split('.')[0] in self.vars.keys():
@@ -337,20 +343,14 @@ class LumaInterpreter:
             propertyname = dexpr.split('.')[1]
             if propertyname in self.vars[instancename].functions.keys():
                 args = self.extractargs(line.strip(), f'{instancename}.{propertyname}')
-                if len(args) == len(self.vars[instancename].functions[propertyname].args):
-                    self.vars[instancename].callmethod(propertyname, args)
-                else:
-                    raise LumaInterpreter.LumaTypeError(f"function '{instancename}.{propertyname}' expected {len(self.vars[instancename].functions[propertyname].args)} arguments but got {len(args)}")
+                self.vars[instancename].callmethod(propertyname, args)
             else:
                 raise LumaInterpreter.LumaNameError(f"undefined function {self.getfirstword(line)}")
         else:
             if self.getfirstword(line) in functions.keys():
                 func_name = self.getfirstword(line)
                 args = self.extractargs(line, func_name)
-                if len(args) == len(functions[func_name].args):
-                    functions[func_name].run(args)
-                else:
-                    raise LumaInterpreter.LumaTypeError(f"function '{func_name}' expected {len(self.functions[func_name].args)} arguments but got {len(args)}")
+                functions[func_name].run(args)
             else:
                 raise LumaInterpreter.LumaNameError(f"undefined function {self.getfirstword(line)}")
     
@@ -362,16 +362,38 @@ class LumaInterpreter:
             if part in self.LOGICAL_OPERATORS:
                 r.append(part)
             else:
-                r.append(self.functions['packvalue'].body(self.evaluate(part)))
+                if not self.isnumber(str(self.evaluate(part))):
+                    r.append(json.dumps(str(self.evaluate(part))))
+                else:
+                    r.append(str(self.evaluate(part)))
         return ''.join(r)
     
 
-    def splitbyop(self, expr: str):
-        pattern = r'\s*(' + '|'.join(re.escape(op) for op in self.LOGICAL_OPERATORS) + r')\s*'
+    def parse_args(self, input_string: str):
+        if input_string == '': return []
+        result = []
+        tokens = [token.strip() for token in input_string.split(',')]
 
+        seen_default = False
+
+        for token in tokens:
+            if '=' in token:
+                name, value = [x.strip() for x in token.split('=', 1)]
+                result.append({'name': name, 'default': self.evaluate(value)})
+                seen_default = True
+            else:
+                if seen_default:
+                    raise ValueError(f"Non-default variable '{token}' cannot follow a variable with a default value.")
+                result.append({'name': token})
+
+        return result
+
+
+
+    def splitbyop(self, expr: str):
         tokens = []
         while expr:
-            match = re.search(pattern, expr)
+            match = re.search(self.LOGICAL_OP_RE, expr)
             if match:
                 before = expr[:match.start()].strip()
                 if before:
@@ -389,11 +411,7 @@ class LumaInterpreter:
         rawargs = line[len(funcname) + 2:-1]
         if rawargs == '':
             return []
-        args = self.smrtsplt(rawargs, ', ')
-        for i in range(len(args)):
-            evaluatedarg = self.evaluate(args[i])
-            args[i] = evaluatedarg
-        return args
+        return [self.evaluate(arg) for arg in self.smrtsplt(rawargs, ', ')]
     
 
     def termisclosed(self, term):
@@ -454,7 +472,7 @@ class LumaInterpreter:
         return parts
 
 
-    def evaluate(self, expr: str, evalforwhat = None):
+    def evaluate(self, expr: str, evalforwhat = None, d = False):
         if not evalforwhat:
             evalforwhat = self.generaterandomvarname()
         
@@ -464,7 +482,6 @@ class LumaInterpreter:
                 return scope[expr]
         for op in self.OPERATORS:
             if f' {op} ' in expr and len(self.smrtsplt(expr, f' {op} ')) > 1:
-                res = ''
                 terms = self.smrtsplt(expr, f' {op} ')
                 term0 = self.evaluate(f' {op} '.join(terms[:-1]))
                 if type(term0) == LumaInterpreter.IntancedLumaObject:
@@ -473,10 +490,11 @@ class LumaInterpreter:
                         opstrr = self.evaluate(opstr)
                         return opstrr
                     else:
-                        raise LumaInterpreter.LumaTypeError(f"unsupported opertaor: unable to perform operator {op} on types '{self.evaluate(f'&{terms[0]}')}' and '{self.evaluate(f"&{f' {op} '.join(terms[1:])}")}'")
-                for term in terms:
-                    res += str(self.evaluate(term))
-                return res
+                        raise LumaInterpreter.LumaTypeError(f"unsupported operator: unable to perform operator {op} on types '{self.evaluate(f'&{terms[0]}')}' and '{self.evaluate(f"&{f' {op} '.join(terms[1:])}")}'")
+                try:
+                    return self.REAL_OPERATORS[op](self.evaluate(f' {op} '.join(terms[:-1])), self.evaluate(terms[-1]))
+                except TypeError:
+                    raise LumaInterpreter.LumaTypeError(f"unsupported operator: unable to perform operator {op} on types 'raw {type(self.evaluate(f'{terms[0]}')).__name__}' and 'raw {type(self.evaluate(f"{f' {op} '.join(terms[1:])}")).__name__}'")
         if self.isnumber(expr):
             return self.evaluate(f'float (r"{expr}")' if '.' in expr else f'int (r"{expr}")', evalforwhat)
         elif expr.startswith('"') and expr.endswith('"') and not '"' in expr[1:-1]:
@@ -484,11 +502,16 @@ class LumaInterpreter:
         elif expr.startswith("'") and expr.endswith("'") and not "'" in expr[1:-1]:
             return self.evaluate(f'str (r"{expr[1:-1]}")', evalforwhat)
         elif expr in self.vars.keys():
-            return self.vars[expr]
+            if type(self.vars[expr]) == LumaInterpreter.IntancedLumaObject:
+                r = copy.copy(self.vars[expr])
+                r.vars = dict(self.vars[expr].vars)
+            else:
+                r = self.vars[expr]
+            return r
         elif expr[0] == '&':
             data: LumaInterpreter.IntancedLumaObject = self.evaluate(expr[1:])
-            return data.name if type(data) == LumaInterpreter.IntancedLumaObject else "raw " + type(data).__name__
-        elif expr.startswith('r"') and expr.endswith('"') and not '"' in expr[2:-1]:
+            return data.name if type(data) == LumaInterpreter.IntancedLumaObject else "raw"
+        elif expr.startswith('r"') and expr.endswith('"'):
             return self.realvalue(expr[2:-1])
         elif expr.count('.') > 0 and len(self.smrtsplt(expr, '.')) > 1:
             i = 0
@@ -504,36 +527,26 @@ class LumaInterpreter:
                     return instance.vars[propertyname]
                 elif propertyname in instance.functions.keys():
                     args = self.extractargs(expr.strip(), f'{instancename}.{propertyname}')
-                    if len(args) == len(instance.functions[propertyname].args):
-                        r = instance.callmethod(propertyname, args)
-                        return r
-                    raise LumaInterpreter.LumaTypeError(f"function '{propertyname}' expected {len(instance.functions[propertyname].args)} arguments but got {len(args)}")
+                    r = instance.callmethod(propertyname, args)
+                    return r
                 else:
                     raise LumaInterpreter.LumaAttributeError(f"undefined '{instancename}.{propertyname}'")
             else:
                 raise LumaInterpreter.LumaNameError(f"undefined variable '{instancename}'")
         elif self.getfirstword(expr) in self.classes.keys():
             args = self.extractargs(expr.strip(), self.getfirstword(expr.strip()))
-            if len(args) == len(self.classes[self.getfirstword(expr.strip())].functions['constructor'].args):
-                instance = self.classes[self.getfirstword(expr.strip())].instance(args, evalforwhat)
-                return copy.deepcopy(instance)
-            else:
-                raise LumaInterpreter.LumaTypeError(f"function '{self.getfirstword(expr)}.constructor' expected {len(self.classes[self.getfirstword(expr.strip())].functions['constructor'].args)} arguments but got {len(args)}")
+            instance = self.classes[self.getfirstword(expr.strip())].instance(args, evalforwhat)
+            r = instance
+            r.vars = dict(instance.vars)
+            return r
         elif self.getfirstword(expr) in self.functions.keys():
             args = self.extractargs(expr.strip(), self.getfirstword(expr))
-            if len(args) == len(self.functions[self.getfirstword(expr.strip())].args):
-                r = self.functions[self.getfirstword(expr.strip())].run(args)
-                print(f"expr: {expr} args[0]: {args[0]} r: {r}")
-                return r
-            else:
-                raise LumaInterpreter.LumaTypeError(f"function '{self.getfirstword(expr)}' expected {len(self.functions[self.getfirstword(expr)].args)} arguments but got {len(args)}")
+            r = self.functions[self.getfirstword(expr.strip())].run(args)
+            return r
         elif expr.startswith('(') and expr.endswith(')'):
-            try:
-                return self.evaluate(expr[1:-1])
-            except Exception:
-                return None
+            return self.evaluate(expr[1:-1])
         else:
-            raise LumaInterpreter.LumaNameError(f"undefined variable '{expr}'")
+            raise LumaInterpreter.LumaNameError(f"undefined variable '{self.getfirstword(expr)}'")
 
     class LumaFunction:
         def __init__(self, name: str, args: list[str], body: str | FunctionType, glob: dict[str, Any]):
@@ -544,13 +557,10 @@ class LumaInterpreter:
 
 
         def run(self, args: list, Object = None, varsholder = None):
-            argdict = {}
+            argdict = self.bind_values(args)
             interpreter: LumaInterpreter = get_current_interpreter(self.glob)
             if varsholder == None:
                 varsholder = interpreter.vars
-            Object: LumaInterpreter.IntancedLumaObject | None
-            for i in range(len(args)):
-                argdict[self.args[i]] = args[i]
             if Object:
                 argdict['this'] = Object
             interpreter.localparams.append(argdict)
@@ -568,11 +578,33 @@ class LumaInterpreter:
                 varsholder.pop(key, None)
             interpreter.localparams.pop()
             return r
+        
+
+        def bind_values(self, args):
+            result = {}
+            value_index = 0
+
+            for var in self.args:
+                name = var['name']
+
+                if value_index < len(args):
+                    result[name] = args[value_index]
+                    value_index += 1
+                elif 'default' in var:
+                    result[name] = var['default']
+                else:
+                    raise LumaInterpreter.LumaTypeError(f"function '{self.name}' expected {len(self.args)} arguments but got {len(args)}")
+
+            if value_index < len(args):
+                raise LumaInterpreter.LumaTypeError(f"function '{self.name}' expected {len(self.args)} arguments but got {len(args)}")
+
+            return result
 
     
     class LumaClass:
-        def __init__(self, name: str, glob: dict[str, Any]):
+        def __init__(self, name: str, glob: dict[str, Any], parents: list[str] = []):
             self.name = name
+            self.parents = parents
             self.glob = glob
             self.instancen = None
             self.functions: dict[str, LumaInterpreter.LumaFunction] = {}
@@ -591,7 +623,7 @@ class LumaInterpreter:
         
 
         def instance(self, args: list, name):
-            return LumaInterpreter.IntancedLumaObject(self.vars, self.functions, self.name, args, name, self.glob)
+            return LumaInterpreter.IntancedLumaObject(self.vars, self.functions, self.name, args, name, self.glob, self.parents)
 
 
         def __str__(self):
@@ -622,8 +654,9 @@ class LumaInterpreter:
 
 
     class IntancedLumaObject(LumaClass):
-        def __init__(self, varis: dict, functions: dict, name: str, args: list[Any], instancename: str, glob: dict[str, Any]):
+        def __init__(self, varis: dict, functions: dict, name: str, args: list[Any], instancename: str, glob: dict[str, Any], parents: list[str]):
             self.vars = varis
+            self.parents = parents
             self.functions = functions
             self.name = name
             self.glob = glob
@@ -669,15 +702,9 @@ class LumaInterpreter:
 
 
 def get_current_interpreter(glob: dict[str, Any]) -> (LumaInterpreter | None):
-    for varname in glob.keys():
-        if type(glob[varname]) == LumaInterpreter:
-            return glob[varname]
-    return None
+    return next((v for v in glob.values() if isinstance(v, LumaInterpreter)), None)
 
 
 def log(*texts):
-        texts = list(texts)
-        for i in range(len(texts)):
-            texts[i] = str(texts[i])
-        with open('log.txt', 'a') as log:
-            log.write(', '.join(texts) + '\n')
+    with open('log.txt', 'a') as logf:
+        logf.write(', '.join(map(str, texts)) + '\n')

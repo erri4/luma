@@ -1,3 +1,10 @@
+class raw {
+    constructor raw (){
+
+    }
+}
+
+
 class valuedObject {
     constructor valuedObject (value){
         set this.value to value
@@ -11,7 +18,10 @@ class valuedObject {
 class str (valuedObject) {
     constructor str (value){
         set this.value to nativecode (r"str(" + packvalue (value) + r")")
-        set this.len to int (nativecode (r"len(" + packvalue (this.value) + r")"))
+    }
+
+    function len (){
+        return int (nativecode (r"len(" + packvalue (this.value) + r")"))
     }
 
     function @addition (other){
@@ -28,20 +38,33 @@ class int (valuedObject) {
         set this.value to nativecode (r"int(" + packvalue (value) + r")")
     }
 
+    function len (){
+        return int (nativecode (r"len(" + packvalue (this.value) + r")"))
+    }
+
     function @addition (other){
-        return int (nativecode (this.value + r" + " + packvalue (other.value)))
+        if (&other == &this){
+            return int (nativecode (str (this.value).value + r" + " + str (other).value))
+        }
+        return float (nativecode (str (this.value).value + r" + " + str (other).value))
     }
 
     function @division (other){
-        return float (nativecode (this.value + r" / " + packvalue (other.value)))
+        return float (nativecode (str (this.value).value + r" / " + str (other).value))
     }
 
     function @subtraction (other){
-        return int (nativecode (this.value + r" - " + packvalue (other.value)))
+        if (&other == &this){
+            return int (nativecode (str (this.value).value + r" - " + str (other).value))
+        }
+        return float (nativecode (str (this.value).value + r" - " + str (other).value))
     }
 
     function @multiplication (other){
-        return int (nativecode (this.value + r" * " + packvalue (other.value)))
+        if (&other == &this){
+            return int (nativecode (str (this.value).value + r" * " + str (other).value))
+        }
+        return float (nativecode (str (this.value).value + r" * " + str (other).value))
     }
 }
 
@@ -51,19 +74,19 @@ class float (valuedObject) {
     }
 
     function @addition (other){
-        return float (nativecode (this.value + r" + " + packvalue (other.value)))
+        return float (nativecode (str (this.value).value + r" + " + other.value))
     }
 
     function @division (other){
-        return float (nativecode (this.value + r" / " + packvalue (other.value)))
+        return float (nativecode (str (this.value).value + r" / " + other.value))
     }
 
     function @subtraction (other){
-        return float (nativecode (this.value + r" - " + packvalue (other.value)))
+        return float (nativecode (str (this.value).value + r" - " + other.value))
     }
 
     function @multiplication (other){
-        return float (nativecode (this.value + r" * " + packvalue (other.value)))
+        return float (nativecode (str (this.value).value + r" * " + other.value))
     }
 }
 
@@ -77,11 +100,15 @@ class dict (valuedObject) {
     }
 }
 
+function range (start, end, jump){
+
+}
+
 function show (data){
     nativecode ("print(" + str (packvalue (str (data))) + ")")
 }
 
-function input (prompt){
+function input (prompt = ""){
     set inpt to str (nativecode ("input(" + str (packvalue (str (prompt))) + ")"))
     return inpt
 }
