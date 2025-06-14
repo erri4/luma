@@ -61,9 +61,6 @@ class LumaInterpreter:
 
 
     def run(self, program: str, filename: str, glob: dict[str, Any]):
-        for key in list(glob.keys()):
-            if type(glob[key]) == TextIOWrapper or type(glob[key]) == ModuleType:
-                del glob[key]
         self.glob = glob
 
         def nativecode(pytext):
@@ -77,9 +74,13 @@ class LumaInterpreter:
         
         self.functions['nativecode'] = self.LumaFunction('nativecode', [{'name':'pytext'}], nativecode, self.glob)
         self.functions['packvalue'] = self.LumaFunction('packvalue', [{'name': 'string'}], packvalue, self.glob)
+
+        module = self.LumaClass('module', glob)
+        self.classes['module'] = module
+
         self.filename = filename
         self.scopes: list[str] = [program]
-        self.runimport(':builtins.lum')
+        self.runimport(':builtins.lum', None)
         self.runsubprogram(program, infunc=False)
     
 
@@ -147,7 +148,7 @@ class LumaInterpreter:
         return varname
     
 
-    def runimport(self, module: str):
+    def runimport(self, module: str, name: str):
         if ':' in module:
             if getattr(sys, 'frozen', False):
                 base_dir = os.path.dirname(sys.executable)
@@ -158,7 +159,15 @@ class LumaInterpreter:
         try:
             with open(module) as imported:
                 subprogram = imported.read()
-                self.runsubprogram(subprogram, infunc=False)
+                if name == None:
+                    self.runsubprogram(subprogram, infunc=False)
+                else:
+                    body = 'class module {\n    constructor module (){\n        \n    }\n\n'
+                    for line in subprogram.splitlines():
+                        body += '    ' + line + '\n'
+                    body += '}'
+                    self.runsubprogram(body, infunc=False)
+                    self.runsubprogram(f'set {name} to module ()')
         except FileNotFoundError:
             raise LumaInterpreter.LumaModuleNotFoundError(f"No module named '{module}'")
     
@@ -188,10 +197,12 @@ class LumaInterpreter:
         if Object == None:
             varis = self.vars
             functions: dict[str, LumaInterpreter.LumaFunction] = self.functions
+            classes: dict[str, LumaInterpreter.LumaFunction] = self.classes
         else:
             Object: LumaInterpreter | LumaInterpreter.IntancedLumaObject
             varis = Object.vars
             functions: dict[str, LumaInterpreter.LumaFunction] = Object.functions
+            classes: dict[str, LumaInterpreter.LumaClass] = Object.classes
         program = self.scopes[-1]
         if line.startswith('function'):
             func_name = line[9:line.find(' (')]
@@ -219,15 +230,15 @@ class LumaInterpreter:
             if '(' in class_name and ')' in class_name:
                 parent = class_name[class_name.find('(') + 1:class_name.find(')')]
                 class_name = class_name[:class_name.find('(') - 1]
-                self.classes[class_name] = copy.copy(self.classes[parent])
-                self.classes[class_name].functions = dict(self.classes[parent].functions)
-                self.classes[class_name].vars = dict(self.classes[parent].vars)
-                self.classes[class_name].parents = list(self.classes[parent].parents)
-                self.classes[class_name].parents.append(parent)
-                self.classes[class_name].name = class_name
+                classes[class_name] = copy.copy(classes[parent])
+                classes[class_name].functions = dict(classes[parent].functions)
+                classes[class_name].vars = dict(classes[parent].vars)
+                classes[class_name].parents = list(classes[parent].parents)
+                classes[class_name].parents.append(parent)
+                classes[class_name].name = class_name
             else:
-                self.classes[class_name] = self.LumaClass(class_name, self.glob)
-            self.runsubprogram(body, self.classes[class_name])
+                classes[class_name] = self.LumaClass(class_name, self.glob)
+            self.runsubprogram(body, classes[class_name])
         elif line.startswith('constructor'):
             class_name = line[12:line.find(' (')]
             args = self.parse_args(line[line.find(' (') + 2:line.find(')')])
@@ -256,7 +267,10 @@ class LumaInterpreter:
                 varis[varname] = value
         elif line.startswith('import'):
             module = self.getfirstword(line[7:])
-            self.runimport(module)
+            name = None
+            if self.getfirstword(line[7:]) != line[7:]:
+                name = line[11 + len(self.getfirstword(line[7:])):]
+            self.runimport(module, name)
         elif line.startswith('if'):
             condition = line[4:line.find('){')]
             a = "\n".join(program.splitlines()[linenum - 1:])
@@ -529,6 +543,12 @@ class LumaInterpreter:
                     args = self.extractargs(expr.strip(), f'{instancename}.{propertyname}')
                     r = instance.callmethod(propertyname, args)
                     return r
+                elif propertyname in instance.classes.keys():
+                    args = self.extractargs(expr.strip(), self.getfirstword(expr.strip()))
+                    instance = instance.classes[propertyname].instance(args, evalforwhat)
+                    r = instance
+                    r.vars = dict(instance.vars)
+                    return r
                 else:
                     raise LumaInterpreter.LumaAttributeError(f"undefined '{instancename}.{propertyname}'")
             else:
@@ -569,7 +589,10 @@ class LumaInterpreter:
             if type(self.body) == str:
                 r = interpreter.runsubprogram(self.body)
             else:
-                r = self.body(*args)
+                rargs = []
+                for key in argdict:
+                    rargs.append(argdict[key])
+                r = self.body(*rargs)
             added_keys = set(interpreter.functions.keys()) - orig_func
             for key in added_keys:
                 interpreter.functions.pop(key, None)
@@ -608,22 +631,23 @@ class LumaInterpreter:
             self.glob = glob
             self.instancen = None
             self.functions: dict[str, LumaInterpreter.LumaFunction] = {}
+            self.classes: dict[str, LumaInterpreter.LumaClass] = {}
 
-            def stringify():
+            def stringify(placeholder):
                 return f'<{self.name} object from luma>'
             
             self.functions['@stringify'] = LumaInterpreter.LumaFunction('@stringify', [], stringify, self.glob)
             self.vars: dict[str] = {}
 
 
-        def callmethod(self, method, args: list):
+        def callmethod(self, method: str, args: list):
             method: LumaInterpreter.LumaFunction = self.functions[method]
             r = method.run(args, self)
             return r
         
 
         def instance(self, args: list, name):
-            return LumaInterpreter.IntancedLumaObject(self.vars, self.functions, self.name, args, name, self.glob, self.parents)
+            return LumaInterpreter.IntancedLumaObject(self.vars, self.functions, self.classes, self.name, args, name, self.glob, self.parents)
 
 
         def __str__(self):
@@ -654,10 +678,11 @@ class LumaInterpreter:
 
 
     class IntancedLumaObject(LumaClass):
-        def __init__(self, varis: dict, functions: dict, name: str, args: list[Any], instancename: str, glob: dict[str, Any], parents: list[str]):
+        def __init__(self, varis: dict, functions: dict, classes: dict, name: str, args: list[Any], instancename: str, glob: dict[str, Any], parents: list[str]):
             self.vars = varis
             self.parents = parents
             self.functions = functions
+            self.classes = classes
             self.name = name
             self.glob = glob
             self.instance(args, instancename)

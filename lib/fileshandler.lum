@@ -1,33 +1,20 @@
-class @file {
-    constructor @file (path){
+class file {
+    constructor file (path){
         set this.path to path
     }
 
     function read (){
-        set rdstr to "open(" + packstr (this.path) + ").read()"
+        set rdstr to "open(" + packvalue (this.path) + ").read()"
         return nativecode (rdstr)
     }
 
     function write (newfile){
-        set wrstr to "open(" + packstr (this.path) + ", 'w').write(" + packstr (newfile) + ")"
+        set wrstr to "open(" + packvalue (this.path) + ", 'w').write(" + packvalue (newfile) + ")"
         nativecode (wrstr)
     }
 
     function writeln (newfile){
-        set wrstr to "open(" + packstr (this.path) + ", 'a').write(" + packstr ("\n" + newfile) + ")"
+        set wrstr to "open(" + packvalue (this.path) + ", 'a').write(" + packvalue ("\n" + newfile) + ")"
         nativecode (wrstr)
     }
 }
-
-
-class @libContainer {
-    constructor @libContainer (){
-
-    }
-
-    function file (path){
-        return @file (path)
-    }
-}
-
-set files to @libContainer ()

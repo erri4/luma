@@ -4,24 +4,12 @@ dct.set (1, "t")
 show (dct.at (1))
 show (dct.at (0)) */
 
-function fibonacci (num){
-    if (num <= 0){
-        return 0
-    }
-    set count to 2
-    set a to 1
-    set b to 1
-    while (count < num){
-        set b to a + b
-        set a to b - a
-        set count to count + 1
-    }
-    return b
-}
+import lib:fileshandler.lum as files
 
+set test to files.file ("test.py")
 
-// 0 1 2 3 4 5 6 7  ...
-// 0 1 1 2 3 5 8 13 ...
-set n to input ("hh")
-set result to str (fibonacci (n))
-show ("The " + str (n) + "th Fibonacci number is: " + result)
+set py to test.read ()
+test.write ("print")
+show (test.read ())
+test.write (py)
+show (test.read ())

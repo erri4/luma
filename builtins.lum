@@ -104,7 +104,7 @@ function range (start, end, jump){
 
 }
 
-function show (data){
+function show (data = ""){
     nativecode ("print(" + str (packvalue (str (data))) + ")")
 }
 
