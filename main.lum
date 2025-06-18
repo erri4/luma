@@ -4,12 +4,16 @@ dct.set (1, "t")
 show (dct.at (1))
 show (dct.at (0)) */
 
-import lib:fileshandler.lum as files
+import lib:math.lum
 
-set test to files.file ("test.py")
 
-set py to test.read ()
-test.write ("print")
-show (test.read ())
-test.write (py)
-show (test.read ())
+function fib (n){
+    if (n <= 1){
+        return 1
+    }
+
+    return fib (n - 1) + fib (n - 2)
+}
+
+show (fib (6))
+show (fibonacci (6))

@@ -104,8 +104,8 @@ function range (start, end, jump){
 
 }
 
-function show (data = ""){
-    nativecode ("print(" + str (packvalue (str (data))) + ")")
+function show (data = "", end = "\n"){
+    nativecode ("print(" + str (packvalue (str (data))) + ", end=" + str (packvalue (str (end))) + ")")
 }
 
 function input (prompt = ""){
