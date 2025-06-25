@@ -1,4 +1,5 @@
-from types import FunctionType
+from types import FunctionType, ModuleType
+from io import TextIOWrapper
 from typing import Any
 import operator
 import sys
@@ -6,7 +7,6 @@ import json
 import copy
 import re
 import os
-import ast
 
 
 ###################################################
@@ -59,7 +59,7 @@ class LumaInterpreter:
 
 
     def run(self, program: str, filename: str, glob: dict[str, Any]):
-        self.glob = glob
+        self.glob = clear_uncopyable(glob)
 
         def nativecode(pytext):
             globs = {"filename": self.filename}
@@ -87,9 +87,8 @@ class LumaInterpreter:
     
 
     def isnumber(self, data: str | int | float):
-        if type(data) in [int, float]: return True
-        if type(data) != str: return False
-        return bool(re.match(self.NUMBER_RE, data))
+        if type(data) == str: return bool(re.match(self.NUMBER_RE, data))
+        return isinstance(data, (int, float))
     
 
     def reverse_list(self, r):
@@ -505,7 +504,12 @@ class LumaInterpreter:
         scopes: list[dict[str, LumaInterpreter.IntancedLumaObject]] = self.reverse_list(self.localparams)
         for scope in scopes:
             if expr in scope.keys():
-                return scope[expr]
+                if type(scope[expr]) == LumaInterpreter.IntancedLumaObject:
+                    r = copy.copy(scope[expr])
+                    r.vars = dict(scope[expr].vars)
+                else:
+                    r = scope[expr]
+                return r
         for op in self.OPERATORS:
             splitted = self.smrtsplt(expr, f' {op} ')
             if f' {op} ' in expr and len(splitted) > 1:
@@ -754,3 +758,11 @@ def get_current_interpreter(glob: dict[str, Any]) -> (LumaInterpreter | None):
 def log(*texts):
     with open('log.txt', 'a') as logf:
         logf.write(', '.join(map(str, texts)) + '\n')
+
+
+def clear_uncopyable(obj: dict):
+    uncopyable_types = [ModuleType, TextIOWrapper]
+    for key in list(obj.keys()):
+        if type(obj[key]) in uncopyable_types:
+            del obj[key]
+    return obj

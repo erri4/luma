@@ -4,16 +4,16 @@ dct.set (1, "t")
 show (dct.at (1))
 show (dct.at (0)) */
 
-import lib:math.lum
+import lib:math.lum as math
 
 
 function fib (n){
-    if (n <= 1){
+    if (n <= 2){
         return 1
     }
 
     return fib (n - 1) + fib (n - 2)
 }
 
-show (fib (6))
-show (fibonacci (6))
+show (fib (10))
+show (math.fibonacci (10))
