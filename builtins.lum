@@ -13,6 +13,32 @@ class valuedObject {
     function @stringify (){
         return nativecode (r"str(" + packvalue (this.value) + r")")
     }
+
+    function len (){
+        return int (nativecode (r"len(" + packvalue (this.value) + r")"))
+    }
+}
+
+class bool (valuedObject) {
+    constructor bool (value){
+        set this.value to nativecode (r"bool(" + packvalue (value) + r")")
+    }
+
+    function @stringify (){
+        return nativecode (r"str(" + packvalue (this.value) + r")")
+    }
+
+    function @equal (other){
+        return nativecode (str (this.value).value + r" = " + str (other.value).value)
+    }
+
+    function @nequal (other){
+        return nativecode (str (this.value).value + r" != " + str (other.value).value)
+    }
+
+    function invert (){
+        return bool (nativecode (r"not " + packvalue (this.value)))
+    }
 }
 
 class str (valuedObject) {
@@ -20,8 +46,12 @@ class str (valuedObject) {
         set this.value to nativecode (r"str(" + packvalue (value) + r")")
     }
 
-    function len (){
-        return int (nativecode (r"len(" + packvalue (this.value) + r")"))
+    function @equal (other){
+        return nativecode (str (this.value).value + r" = " + str (other.value).value)
+    }
+
+    function @nequal (other){
+        return nativecode (str (this.value).value + r" != " + str (other.value).value)
     }
 
     function @addition (other){
@@ -38,8 +68,28 @@ class int (valuedObject) {
         set this.value to nativecode (r"int(" + packvalue (value) + r")")
     }
 
-    function len (){
-        return int (nativecode (r"len(" + packvalue (this.value) + r")"))
+    function @equal (other){
+        return nativecode (str (this.value).value + r" = " + str (other.value).value)
+    }
+
+    function @nequal (other){
+        return nativecode (str (this.value).value + r" != " + str (other.value).value)
+    }
+
+    function @lequal (other){
+        return nativecode (str (this.value).value + r" <= " + str (other.value).value)
+    }
+
+    function @lesst (other){
+        return nativecode (str (this.value).value + r" < " + str (other.value).value)
+    }
+
+    function @greatert (other){
+        return nativecode (str (this.value).value + r" > " + str (other.value).value)
+    }
+
+    function @gequal (other){
+        return nativecode (str (this.value).value + r" <= " + str (other.value).value)
     }
 
     function @addition (other){

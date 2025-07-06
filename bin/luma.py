@@ -2,6 +2,8 @@ from interpreter import LumaInterpreter
 import sys
 
 
+# profile: python -m cProfile -s tottime your_script.py
+
 if __name__ == '__main__':
     filename = sys.argv[1]
     interpreter = LumaInterpreter()

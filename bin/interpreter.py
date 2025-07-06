@@ -202,7 +202,7 @@ class LumaInterpreter:
             functions: dict[str, LumaInterpreter.LumaFunction] = self.functions
             classes: dict[str, LumaInterpreter.LumaFunction] = self.classes
         else:
-            Object: LumaInterpreter | LumaInterpreter.IntancedLumaObject
+            Object: LumaInterpreter | LumaInterpreter.IntancedLumaObject = Object
             varis = Object.vars
             functions: dict[str, LumaInterpreter.LumaFunction] = Object.functions
             classes: dict[str, LumaInterpreter.LumaClass] = Object.classes
@@ -319,14 +319,14 @@ class LumaInterpreter:
                     stop += len(linee) + 1
                 elsebody = a[a.find('{') + 2:stop].strip()
             r = None
-            if eval(condition):
+            if self.evaluatecond(condition):
                 r = self.runsubprogram(body)
             else:
                 foundelif = False
                 for i in range(len(conditions)):
                     con = conditions[i]
                     bd: str = bodys[i]
-                    if eval(con):
+                    if self.evaluatecond(con):
                         r = self.runsubprogram(bd)
                         foundelif = True
                         break
@@ -344,7 +344,7 @@ class LumaInterpreter:
                 stop += len(linee) + 1
             body = a[a.find('){') + 3:stop].strip()
             processedcondition = self.processcondition(condition)
-            while eval(processedcondition):
+            while self.evaluatecond(processedcondition):
                 self.runsubprogram(body)
                 processedcondition = self.processcondition(condition)
         elif line.startswith('return'):
@@ -379,11 +379,8 @@ class LumaInterpreter:
             if part in self.LOGICAL_OPERATORS:
                 r.append(part)
             else:
-                if not self.isnumber(str(self.evaluate(part))):
-                    r.append(json.dumps(str(self.evaluate(part))))
-                else:
-                    r.append(str(self.evaluate(part)))
-        return ''.join(r)
+                r.append(self.evaluate(part))
+        return r
     
 
     def parse_args(self, input_string: str):
@@ -459,7 +456,84 @@ class LumaInterpreter:
         return not in_quotes and not stack
     
 
+    def evaluatecond(self, cond: list[str]):
+        # cond: [left, op, right, 'and', left2, op2, right2, ...]
+        if not cond:
+            return False
+        i = 0
+        result = None
+        invert_next = False
+        while i < len(cond):
+            # Handle 'not'
+            if type(cond[i]) != LumaInterpreter.IntancedLumaObject and cond[i] == 'not ':
+                invert_next = not invert_next
+                i += 1
+                continue
+
+            # Get [left, op, right]
+            if i + 2 >= len(cond):
+                # Not enough parts for a condition
+                break
+            left, op, right = cond[i], cond[i+1], cond[i+2]
+            val = self._eval_single_condition([left, op, right])
+            if invert_next:
+                val = not val
+                invert_next = False
+            i += 3
+
+            # Combine with previous result using logical operators
+            if result is None:
+                result = val
+            else:
+                # Look ahead for 'and'/'or'
+                if i < len(cond) and cond[i] == 'and ':
+                    result = result and val
+                    i += 1
+                elif i < len(cond) and cond[i] == 'or ':
+                    result = result or val
+                    i += 1
+                else:
+                    # No logical operator, just use last value
+                    result = val
+        return result
+
+    def _eval_single_condition(self, parts):
+        # parts: [left, op, right]
+        left, op, right = parts
+        # Try to convert to numbers if possible
+        try:
+            left_val = float(left)
+        except Exception:
+            left_val = left
+        try:
+            right_val = float(right)
+        except Exception:
+            right_val = right
+        if op == ' == ':
+            return left_val == right_val
+        elif op in (' <= ', ' =< '):
+            return left_val <= right_val
+        elif op == ' >= ':
+            return left_val >= right_val
+        elif op == ' > ':
+            return left_val > right_val
+        elif op == ' < ':
+            return left_val < right_val
+        else:
+            # Unknown operator, fallback to False
+            return False
+
+
+    def copyobj(self, obj):
+        obj: LumaInterpreter.IntancedLumaObject = obj
+        cp = copy.copy(obj)
+        cp.vars = dict(obj.vars)
+        return cp
+    
+
     def smrtsplt(self, expr: str, sep: str):
+        if '"' not in expr and '(' not in expr and '[' not in expr and '{' not in expr:
+            return expr.split(sep)
         parts = []
         stack = []
         in_quotes = False
@@ -496,7 +570,6 @@ class LumaInterpreter:
         return parts
 
 
-
     def evaluate(self, expr: str, evalforwhat = None):
         if not evalforwhat:
             evalforwhat = self.generaterandomvarname()
@@ -511,21 +584,24 @@ class LumaInterpreter:
                     r = scope[expr]
                 return r
         for op in self.OPERATORS:
-            splitted = self.smrtsplt(expr, f' {op} ')
-            if f' {op} ' in expr and len(splitted) > 1:
+            op_token = f' {op} '
+            if op_token not in expr:
+                continue
+            splitted = self.smrtsplt(expr, op_token)
+            if op_token in expr and len(splitted) > 1:
                 terms = splitted
-                term0 = self.evaluate(f' {op} '.join(terms[:-1]))
+                term0 = self.evaluate(op_token.join(terms[:-1]))
                 if type(term0) == LumaInterpreter.IntancedLumaObject:
                     if self.OPERATORS[op] in term0.functions:
-                        opstr = f'({f' {op} '.join(terms[:-1])}).{self.OPERATORS[op]} ({terms[-1]})'
+                        opstr = f'({op_token.join(terms[:-1])}).{self.OPERATORS[op]} ({terms[-1]})'
                         opstrr = self.evaluate(opstr)
                         return opstrr
                     else:
-                        raise LumaInterpreter.LumaTypeError(f"unsupported operator: unable to perform operator {op} on types '{self.evaluate(f'&{terms[0]}')}' and '{self.evaluate(f"&{f' {op} '.join(terms[1:])}")}'")
+                        raise LumaInterpreter.LumaTypeError(f"unsupported operator: unable to perform operator {op} on types '{self.evaluate(f'&{terms[0]}')}' and '{self.evaluate(f"&{op_token.join(terms[1:])}")}'")
                 try:
                     return self.REAL_OPERATORS[op](term0, self.evaluate(terms[-1]))
                 except TypeError:
-                    raise LumaInterpreter.LumaTypeError(f"unsupported operator: unable to perform operator {op} on types 'raw {type(self.evaluate(f'{terms[0]}')).__name__}' and 'raw {type(self.evaluate(f"{f' {op} '.join(terms[1:])}")).__name__}'")
+                    raise LumaInterpreter.LumaTypeError(f"unsupported operator: unable to perform operator {op} on types 'raw {type(self.evaluate(f'{terms[0]}')).__name__}' and 'raw {type(self.evaluate(f"{op_token.join(terms[1:])}")).__name__}'")
                 
         firstword = self.getfirstword(expr)
         dotparts = expr.split('.')
@@ -668,11 +744,6 @@ class LumaInterpreter:
 
         def instance(self, args: list, name):
             return LumaInterpreter.IntancedLumaObject(self.vars, self.functions, self.classes, self.name, args, name, self.glob, self.parents)
-
-
-        def __str__(self):
-            r = self.functions['@stringify'].run([], self)
-            return r
             
         
         def debug(self, trailing: str = '', prnt: bool = True):
@@ -714,6 +785,34 @@ class LumaInterpreter:
             interpreter.vars[name] = self
             interpreter.vars[name].callmethod('constructor', args)
             del interpreter.vars[name]
+
+        
+        def __str__(self):
+            r = self.functions['@stringify'].run([], self)
+            return r
+        def __eq__(self, other):
+            r = self.functions['@equal'].run([other], self) if '@equal' in self.functions else (self.vars == other.vars and self.name == other.name)
+            return r
+        def	__ne__(self, other):
+            r = self.functions['@nequal'].run([other], self)
+            return r
+        def __lt__(self, other):
+            r = self.functions['@lesst'].run([other], self)
+            return r
+        def __le__(self, other):
+            r = self.functions['@lequal'].run([other], self)
+            return r
+        def __gt__(self, other):
+            r = self.functions['@greatert'].run([other], self)
+            return r
+        def __ge__(self, other):
+            r = self.functions['@gequal'].run([other], self)
+            return r
+        def __int__(self):
+            if self.name == 'int':
+                return self.vars['value']
+            else:
+                return None
 
 
     class StopSubProgram(Exception):
