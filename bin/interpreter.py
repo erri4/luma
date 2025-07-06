@@ -183,11 +183,14 @@ class LumaInterpreter:
         for subline in subprogram.splitlines():
             try:
                 res = self.process(subline, linen, Object)
-            except LumaInterpreter.StopSubProgram as e:
-                return e.args[0]
+            except LumaInterpreter.SubProgramExitCode as e:
+                if e.code == 'return':
+                    return e.data
+                else:
+                    raise LumaInterpreter.SubProgramExitCode(e.code, e.data)
             if subline.startswith('return'):
                 if not realfunc:
-                    raise LumaInterpreter.StopSubProgram(res)
+                    raise LumaInterpreter.SubProgramExitCode('return', res)
                 else:
                     break
             linen += 1
@@ -345,13 +348,26 @@ class LumaInterpreter:
             body = a[a.find('){') + 3:stop].strip()
             processedcondition = self.processcondition(condition)
             while self.evaluatecond(processedcondition):
-                self.runsubprogram(body)
+                try:
+                    self.runsubprogram(body)
+                except LumaInterpreter.SubProgramExitCode as e:
+                    if e.code == 'stop':
+                        break
+                    elif e.code == 'again':
+                        processedcondition = self.processcondition(condition)
+                        continue
+                    else:
+                        raise LumaInterpreter.SubProgramExitCode(e.code, e.data)
                 processedcondition = self.processcondition(condition)
         elif line.startswith('return'):
             if line == 'return': return
             value = line[7:]
             r = self.evaluate(value.strip())
             return r
+        elif line == 'again':
+            raise LumaInterpreter.SubProgramExitCode('again')
+        elif line == 'stop':
+            raise LumaInterpreter.SubProgramExitCode('stop')
         elif line.strip() == '' or line.startswith(' ') or line == '}' or line.startswith('elseif') or line.startswith('else'):
             pass
         elif line.count('.') == 1 and self.getfirstword(line).split('.')[0] in self.vars.keys():
@@ -457,22 +473,19 @@ class LumaInterpreter:
     
 
     def evaluatecond(self, cond: list[str]):
-        # cond: [left, op, right, 'and', left2, op2, right2, ...]
         if not cond:
             return False
         i = 0
         result = None
         invert_next = False
         while i < len(cond):
-            # Handle 'not'
             if type(cond[i]) != LumaInterpreter.IntancedLumaObject and cond[i] == 'not ':
                 invert_next = not invert_next
                 i += 1
                 continue
 
-            # Get [left, op, right]
+
             if i + 2 >= len(cond):
-                # Not enough parts for a condition
                 break
             left, op, right = cond[i], cond[i+1], cond[i+2]
             val = self._eval_single_condition([left, op, right])
@@ -481,11 +494,10 @@ class LumaInterpreter:
                 invert_next = False
             i += 3
 
-            # Combine with previous result using logical operators
+
             if result is None:
                 result = val
             else:
-                # Look ahead for 'and'/'or'
                 if i < len(cond) and cond[i] == 'and ':
                     result = result and val
                     i += 1
@@ -493,14 +505,11 @@ class LumaInterpreter:
                     result = result or val
                     i += 1
                 else:
-                    # No logical operator, just use last value
                     result = val
         return result
 
     def _eval_single_condition(self, parts):
-        # parts: [left, op, right]
         left, op, right = parts
-        # Try to convert to numbers if possible
         try:
             left_val = float(left)
         except Exception:
@@ -520,7 +529,6 @@ class LumaInterpreter:
         elif op == ' < ':
             return left_val < right_val
         else:
-            # Unknown operator, fallback to False
             return False
 
 
@@ -815,9 +823,11 @@ class LumaInterpreter:
                 return None
 
 
-    class StopSubProgram(Exception):
-        def __init__(self, *args):
-            super().__init__(*args)
+    class SubProgramExitCode(Exception):
+        def __init__(self, code, data = None):
+            self.code = code
+            self.data = data
+            super().__init__()
             
 
     class LumaNameError(NameError):

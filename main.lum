@@ -15,5 +15,13 @@ function fib (n){
     return fib (n - 1) + fib (n - 2)
 }
 
-show (fib (10))
-show (math.fibonacci (10))
+//show (fib (10))
+set i to 0
+while (i < 10){
+    set i to i + 1
+    show (i)
+    if (i == 5){
+        show ("hi")
+    }
+}
+//show (math.fibonacci (10))

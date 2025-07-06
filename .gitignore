@@ -4,3 +4,4 @@ _internal/
 *.txt
 *.exe
 test.*
+nuitka.md

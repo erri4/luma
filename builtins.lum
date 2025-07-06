@@ -47,7 +47,7 @@ class str (valuedObject) {
     }
 
     function @equal (other){
-        return nativecode (str (this.value).value + r" = " + str (other.value).value)
+        return nativecode (str (this.value).value + r" == " + str (other.value).value)
     }
 
     function @nequal (other){
@@ -69,7 +69,7 @@ class int (valuedObject) {
     }
 
     function @equal (other){
-        return nativecode (str (this.value).value + r" = " + str (other.value).value)
+        return nativecode (str (this.value).value + r" == " + str (other.value).value)
     }
 
     function @nequal (other){
