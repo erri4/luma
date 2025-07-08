@@ -155,13 +155,25 @@ class float (valuedObject) {
     }
 }
 
-class dict (valuedObject) {
-    function at (pos) {
-        return nativecode (str (this.value) + "[" + packvalue (pos) + "]")
+class list (dict) {
+    function add (value){
+        this.set (this.len (), value)
     }
 
-    function set (pos, value) {
-
+    function @stringify (){
+        set r to "["
+        set i to 0
+        while (i < this.len ()){
+            if (not i == this.len () - 1){
+                set r to r + packvalue (this.at (i)) + ", "
+            }
+            else {
+                set r to r + packvalue (this.at (i))
+            }
+            set i to i + 1
+        }
+        set r to r + "]"
+        return r.value
     }
 }
 

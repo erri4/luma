@@ -1,33 +1,11 @@
-/* set dct to {0: "g", 1: "h"}
+set dct to {0: "g", 1: "h"}
 show (dct.at (1))
 dct.set (1, "t")
 show (dct.at (1))
-show (dct.at (0)) */
-
-import lib:math.lum as math
-
-
-function fib (n){
-    if (n <= 2){
-        return 1
-    }
-
-    return fib (n - 1) + fib (n - 2)
-}
-
-class customerr (BaseError) {
-    constructor customerr (msg){
-        show ("hi")
-    }
-}
-
-//show (fib (10))
-set i to 0
-while (i < 10){
-    if (i == 5){
-        throw (customerr ("test"))
-    }
-    set i to i + 1
-    show (i)
-}
-//show (math.fibonacci (10))
+show (dct.at (0))
+show (dct)
+show (dct.len ())
+set lst to ["hi"]
+show (lst.at (0))
+lst.add ("hello")
+show (lst)
