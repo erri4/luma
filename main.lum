@@ -19,8 +19,7 @@ function fib (n){
 set i to 0
 while (i < 10){
     if (i == 5){
-        set i to i + 1
-        again
+        throw (customerr ("test"))
     }
     set i to i + 1
     show (i)

@@ -17,9 +17,7 @@ GOAL: . add full builtin classes
 
 . realvalue (includelist)
 
-(. stop (break) keyword, again (continue)
-
-. throwing errors)
+treat classes and functions as types
 
 . dictinaries
 
@@ -75,6 +73,12 @@ class LumaInterpreter:
 
         module = self.LumaClass('module', glob)
         self.classes['module'] = module
+        BaseError = self.LumaClass('BaseError', glob)
+        def constructor(msg, this = None):
+            raise LumaInterpreter.LumaException(['BaseError', msg])
+        
+        BaseError.functions['constructor'] = LumaInterpreter.LumaFunction('constructor', [{'name': 'msg'}], constructor, glob)
+        self.classes['BaseError'] = BaseError
 
         self.filename = filename
         self.scopes: list[str] = [program]
@@ -166,7 +170,7 @@ class LumaInterpreter:
                     self.runsubprogram(body, infunc=False)
                     self.runsubprogram(f'set {name} to module ()')
         except FileNotFoundError:
-            raise LumaInterpreter.LumaModuleNotFoundError(f"No module named '{module}'")
+            self.classes['ModuleNotFoundError'].functions['constructor'].run([f"No module named '{module}'"])
     
     def runsubprogram(self, subprogram: str, Object = None, infunc: bool = True, realfunc: bool = False):
         if Object == None:
@@ -213,10 +217,12 @@ class LumaInterpreter:
             functions: dict[str, LumaInterpreter.LumaFunction] = Object.functions
             classes: dict[str, LumaInterpreter.LumaClass] = Object.classes
         program = self.scopes[-1]
-        if line.startswith('function'):
+        progfind = program.find
+        lnstartswith = line.startswith
+        if lnstartswith('function'):
             func_name = line[9:line.find(' (')]
             args = self.parse_args(line[line.find(' (') + 2:line.find(')')])
-            a = program[program.find(f'{func_name} (') + len(func_name) + 2:]
+            a = program[progfind(f'{func_name} (') + len(func_name) + 2:]
             stop = len(a[:a.find('){') + 3])
             for linee in a[a.find('){') + 3:].splitlines():
                 if linee != '':
@@ -225,9 +231,9 @@ class LumaInterpreter:
                 stop += len(linee) + 1
             body = a[a.find('){') + 3:stop].strip()
             functions[func_name] = self.LumaFunction(func_name, args, body, self.glob)
-        elif line.startswith('class'):
+        elif lnstartswith('class'):
             class_name = line[6:line.find(' {')]
-            a = program[program.find(f'class {class_name}' + ' {') + len(class_name) + 2:]
+            a = program[progfind(f'class {class_name}' + ' {') + len(class_name) + 2:]
             stop = len(a[:a.find(' {') + 3])
             for linee in a[a.find(' {') + 3:].splitlines():
                 if linee != '':
@@ -246,11 +252,16 @@ class LumaInterpreter:
                 classes[class_name].parents = list(classes[parent].parents)
                 classes[class_name].parents.append(parent)
                 classes[class_name].name = class_name
+                if 'BaseError' in classes[class_name].parents:
+                    def constructor(msg, this = None):
+                        raise LumaInterpreter.LumaException([class_name, msg])
+                    
+                    classes[class_name].functions['constructor'] = LumaInterpreter.LumaFunction('constructor', [{'name': 'msg'}], constructor, self.glob)
             self.runsubprogram(body, classes[class_name])
-        elif line.startswith('constructor'):
+        elif lnstartswith('constructor'):
             class_name = line[12:line.find(' (')]
             args = self.parse_args(line[line.find(' (') + 2:line.find(')')])
-            a = program[program.find(f'{class_name} (') + len(class_name) + 2:]
+            a = program[progfind(f'{class_name} (') + len(class_name) + 2:]
             stop = len(a[:a.find('){') + 3])
             for linee in a[a.find('){') + 3:].splitlines():
                 if linee != '':
@@ -259,7 +270,7 @@ class LumaInterpreter:
                 stop += len(linee) + 1
             body = a[a.find('){') + 3:stop].strip()
             functions['constructor'] = self.LumaFunction('constructor', args, body, self.glob)
-        elif line.startswith('set'):
+        elif lnstartswith('set'):
             varname = line[4:line.find('to') - 1]
             value = self.evaluate(line[line.find('to') + 3:], varname)
             if varname.count('.') == 1:
@@ -273,13 +284,13 @@ class LumaInterpreter:
                     varis[instancename].vars[varname.split('.')[1]] = value
             else:
                 varis[varname] = value
-        elif line.startswith('import'):
+        elif lnstartswith('import'):
             module = self.getfirstword(line[7:])
             name = None
             if self.getfirstword(line[7:]) != line[7:]:
                 name = line[11 + len(self.getfirstword(line[7:])):]
             self.runimport(module, name)
-        elif line.startswith('if'):
+        elif lnstartswith('if'):
             condition = line[4:line.find('){')]
             a = "\n".join(program.splitlines()[linenum - 1:])
             stop = len(a[:a.find('){') + 3])
@@ -346,7 +357,7 @@ class LumaInterpreter:
                 if not foundelif:
                     r = self.runsubprogram(elsebody)
             return r
-        elif line.startswith('while'):
+        elif lnstartswith('while'):
             condition = line[7:line.find('){')]
             a = "\n".join(program.splitlines()[linenum - 1:])
             stop = len(a[:a.find('){') + 3])
@@ -369,7 +380,7 @@ class LumaInterpreter:
                     else:
                         raise LumaInterpreter.SubProgramExitCode(e.code, e.data)
                 processedcondition = self.processcondition(condition)
-        elif line.startswith('return'):
+        elif lnstartswith('return'):
             if line == 'return': return
             value = line[7:]
             r = self.evaluate(value.strip())
@@ -378,7 +389,7 @@ class LumaInterpreter:
             raise LumaInterpreter.SubProgramExitCode('again')
         elif line == 'stop':
             raise LumaInterpreter.SubProgramExitCode('stop')
-        elif line.strip() == '' or line.startswith(' ') or line == '}' or line.startswith('elseif') or line.startswith('else'):
+        elif line.strip() == '' or lnstartswith(' ') or line == '}' or lnstartswith('elseif') or lnstartswith('else'):
             pass
         elif line.count('.') == 1 and self.getfirstword(line).split('.')[0] in self.vars.keys():
             dexpr = self.getfirstword(line)
@@ -388,14 +399,14 @@ class LumaInterpreter:
                 args = self.extractargs(line.strip(), f'{instancename}.{propertyname}')
                 self.vars[instancename].callmethod(propertyname, args)
             else:
-                raise LumaInterpreter.LumaNameError(f"undefined function {self.getfirstword(line)}")
+                self.classes['NameError'].functions['constructor'].run([f"undefined function {self.getfirstword(line)}"])
         else:
             if self.getfirstword(line) in functions.keys():
                 func_name = self.getfirstword(line)
                 args = self.extractargs(line, func_name)
                 functions[func_name].run(args)
             else:
-                raise LumaInterpreter.LumaNameError(f"undefined function {self.getfirstword(line)}")
+                self.classes['NameError'].functions['constructor'].run([f"undefined function {self.getfirstword(line)}"])
     
 
     def processcondition(self, condition: str):
@@ -615,11 +626,11 @@ class LumaInterpreter:
                         opstrr = self.evaluate(opstr)
                         return opstrr
                     else:
-                        raise LumaInterpreter.LumaTypeError(f"unsupported operator: unable to perform operator {op} on types '{self.evaluate(f'&{terms[0]}')}' and '{self.evaluate(f"&{op_token.join(terms[1:])}")}'")
+                        self.classes['TypeError'].functions['constructor'].run([f"unsupported operator: unable to perform operator {op} on types '{self.evaluate(f'&{terms[0]}')}' and '{self.evaluate(f"&{op_token.join(terms[1:])}")}'"])
                 try:
                     return self.REAL_OPERATORS[op](term0, self.evaluate(terms[-1]))
                 except TypeError:
-                    raise LumaInterpreter.LumaTypeError(f"unsupported operator: unable to perform operator {op} on types 'raw {type(self.evaluate(f'{terms[0]}')).__name__}' and 'raw {type(self.evaluate(f"{op_token.join(terms[1:])}")).__name__}'")
+                    self.classes['TypeError'].functions['constructor'].run([f"unsupported operator: unable to perform operator {op} on types 'raw {type(self.evaluate(f'{terms[0]}')).__name__}' and 'raw {type(self.evaluate(f"{op_token.join(terms[1:])}")).__name__}'"])
                 
         firstword = self.getfirstword(expr)
         dotparts = expr.split('.')
@@ -664,9 +675,9 @@ class LumaInterpreter:
                     r.vars = dict(instance.vars)
                     return r
                 else:
-                    raise LumaInterpreter.LumaAttributeError(f"undefined '{instancename}.{propertyname}'")
+                    self.classes['NameError'].functions['constructor'].run([f"{instancename} has no attribute '{propertyname}'"])
             else:
-                raise LumaInterpreter.LumaNameError(f"undefined variable '{instancename}'")
+                self.classes['NameError'].functions['constructor'].run([f"undefined variable '{instancename}'"])
         elif firstword in self.classes.keys():
             args = self.extractargs(expr.strip(), self.getfirstword(expr.strip()))
             instance = self.classes[self.getfirstword(expr.strip())].instance(args, evalforwhat)
@@ -680,7 +691,7 @@ class LumaInterpreter:
         elif expr.startswith('(') and expr.endswith(')'):
             return self.evaluate(expr[1:-1])
         else:
-            raise LumaInterpreter.LumaNameError(f"undefined variable '{firstword}'")
+            self.classes['NameError'].functions['constructor'].run([f"undefined variable or function '{firstword}'"])
 
     class LumaFunction:
         def __init__(self, name: str, args: list[str], body: str | FunctionType, glob: dict[str, Any]):
@@ -730,10 +741,10 @@ class LumaInterpreter:
                 elif 'default' in var:
                     result[name] = var['default']
                 else:
-                    raise LumaInterpreter.LumaTypeError(f"function '{self.name}' expected {len(self.args)} arguments but got {len(args)}")
+                    get_current_interpreter(self.glob).classes['TypeError'].functions['constructor'].run([f"function '{self.name}' expected {len(self.args)} arguments but got {len(args)}"])
 
             if value_index < len(args):
-                raise LumaInterpreter.LumaTypeError(f"function '{self.name}' expected {len(self.args)} arguments but got {len(args)}")
+                get_current_interpreter(self.glob).classes['TypeError'].functions['constructor'].run([f"function '{self.name}' expected {len(self.args)} arguments but got {len(args)}"])
 
             return result
 
@@ -840,34 +851,9 @@ class LumaInterpreter:
             super().__init__()
             
 
-    class LumaNameError(NameError):
-        def __init__(self, *args):
-            super().__init__(*args)
-
-
-    class LumaTypeError(TypeError):
-        def __init__(self, *args):
-            super().__init__(*args)
-
-    
-    class LumaSyntaxError(SyntaxError):
-        def __init__(self, *args):
-            super().__init__(*args)
-
-    
-    class LumaAttributeError(AttributeError):
-        def __init__(self, *args):
-            super().__init__(*args)
-
-
-    class LumaModuleNotFoundError(ModuleNotFoundError):
-        def __init__(self, *args):
-            super().__init__(*args)
-
-
     class LumaException(Exception):
-        def __init__(self, *args):
-            super().__init__(*args)
+        def __init__(self, args):
+            super().__init__(args[0] + ': ' + str(args[1]))
 
 
 def get_current_interpreter(glob: dict[str, Any]) -> (LumaInterpreter | None):

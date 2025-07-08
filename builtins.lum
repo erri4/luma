@@ -4,6 +4,21 @@ class raw {
     }
 }
 
+class ModuleNotFoundError (BaseError) {
+
+}
+
+class NameError (BaseError) {
+
+}
+
+class AttributeError (BaseError) {
+
+}
+
+class TypeError (BaseError) {
+    
+}
 
 class valuedObject {
     constructor valuedObject (value){
@@ -161,6 +176,10 @@ function show (data = "", end = "\n"){
 function input (prompt = ""){
     set inpt to str (nativecode ("input(" + str (packvalue (str (prompt))) + ")"))
     return inpt
+}
+
+function throw (error){
+
 }
 
 set @file to str (nativecode ("filename"))
