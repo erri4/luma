@@ -61,9 +61,9 @@ class LumaInterpreter:
     def run(self, program: str, filename: str, glob: dict[str, Any]):
         self.glob = clear_uncopyable(glob)
 
-        def nativecode(pytext):
+        def nativecode(pytext, **kwargs):
             globs = {"filename": self.filename}
-            r = eval(str(pytext), globs)
+            r = eval(str(pytext), globs | kwargs)
             return r
         
         def packvalue(string):
@@ -185,11 +185,14 @@ class LumaInterpreter:
                 res = self.process(subline, linen, Object)
             except LumaInterpreter.SubProgramExitCode as e:
                 if e.code == 'return':
+                    self.scopes.pop()
                     return e.data
                 else:
+                    self.scopes.pop()
                     raise LumaInterpreter.SubProgramExitCode(e.code, e.data)
             if subline.startswith('return'):
                 if not realfunc:
+                    self.scopes.pop()
                     raise LumaInterpreter.SubProgramExitCode('return', res)
                 else:
                     break
@@ -290,7 +293,11 @@ class LumaInterpreter:
             conditions = []
             bodys = []
             linenu = int(linenum) + len(body.splitlines()) + 2
-            subline = self.removetab(program.splitlines()[linenu - 1])
+            subline = ''
+            try:
+                subline = self.removetab(program.splitlines()[linenu - 1])
+            except IndexError:
+                pass
             while subline.startswith('elseif'):
                 cond = subline[8:subline.find(')')]
                 a = "\n".join(program.splitlines()[linenu - 1:])
@@ -310,7 +317,10 @@ class LumaInterpreter:
                     subline = self.removetab(program.splitlines()[linenu - 1])
                 except IndexError:
                     break
-            subline = self.removetab(program.splitlines()[linenu - 1])
+            try:
+                subline = self.removetab(program.splitlines()[linenu - 1])
+            except IndexError:
+                pass
             elsebody = ''
             if subline.startswith('else'):
                 a = "\n".join(program.splitlines()[linenu - 1:])

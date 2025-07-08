@@ -47,7 +47,7 @@ class str (valuedObject) {
     }
 
     function @equal (other){
-        return nativecode (str (this.value).value + r" == " + str (other.value).value)
+        return nativecode (packvalue (this.value) + r" == " + packvalue (str (other.value).value))
     }
 
     function @nequal (other){

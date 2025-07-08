@@ -18,10 +18,11 @@ function fib (n){
 //show (fib (10))
 set i to 0
 while (i < 10){
+    if (i == 5){
+        set i to i + 1
+        again
+    }
     set i to i + 1
     show (i)
-    if (i == 5){
-        show ("hi")
-    }
 }
 //show (math.fibonacci (10))
