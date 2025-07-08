@@ -13,13 +13,11 @@ import os
 '''
 TODO:
 OPTIMIZE
-. treat classes and functions as types
-
-. python objects access from luma
-
-. importing py
-
 . handling errors (interpreter AND luma)
+
+. python objects access from luma # for libraries like socket
+
+. importing py # this will be extentions
 
 ONLY when finished: self.keywords: [...] (not setable)
 
