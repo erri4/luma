@@ -13,17 +13,9 @@ import os
 '''
 TODO:
 OPTIMIZE
-GOAL: . add full builtin classes
-
-. realvalue (includelist)
-
-. python objects access from luma
-
 . treat classes and functions as types
 
-. dictinaries
-
-. lists
+. python objects access from luma
 
 . importing py
 
@@ -284,7 +276,7 @@ class LumaInterpreter:
                 classes[class_name].vars = classes[parent].vars.copy()
                 classes[class_name].parents = classes[parent].parents.copy()
                 classes[class_name].parents.append(parent)
-                classes[class_name].name = class_name
+                classes[class_name].typename = class_name
                 if 'BaseError' in classes[class_name].parents:
                     def constructor(msg, this = None):
                         raise LumaInterpreter.LumaException([class_name, msg])
@@ -454,7 +446,10 @@ class LumaInterpreter:
                 args = self.extractargs(line.strip(), self.getfirstword(line.strip()))
                 classes[self.getfirstword(line.strip())].instance(args, self.generaterandomvarname())
             else:
-                self.throw(self.classes['NameError'], f"undefined function {self.getfirstword(line)}")
+                try:
+                    self.evaluate(line)
+                except Exception:
+                    self.throw(self.classes['NameError'], f"undefined function {self.getfirstword(line)}")
 
 
     def throw(self, exc, msg):
@@ -613,6 +608,13 @@ class LumaInterpreter:
         return cp
     
 
+    def get_oldest_parent(self, cls):
+        for ancestor in reversed(cls.__mro__):
+            if ancestor is not object:
+                return ancestor
+        return cls
+    
+
     def smrtsplt(self, expr: str, sep: str):
         if '"' not in expr and '(' not in expr and '[' not in expr and '{' not in expr:
             return expr.split(sep)
@@ -655,6 +657,7 @@ class LumaInterpreter:
     def evaluate(self, expr: str, evalforwhat = None):
         if not evalforwhat:
             evalforwhat = self.generaterandomvarname()
+        firstword = self.getfirstword(expr.strip())
         
         scopes: list[dict[str, LumaInterpreter.IntancedLumaObject]] = self.reverse_list(self.localparams)
         for scope in scopes:
@@ -664,6 +667,10 @@ class LumaInterpreter:
                     r.vars = scope[expr].vars.copy()
                 else:
                     r = scope[expr]
+                return r
+            elif firstword in scope.keys():
+                args = self.extractargs(expr.strip(), firstword)
+                r = scope[firstword].call(args)
                 return r
         for op in self.OPERATORS:
             op_token = f' {op} '
@@ -684,8 +691,6 @@ class LumaInterpreter:
                     return self.REAL_OPERATORS[op](term0, self.evaluate(terms[-1]))
                 except TypeError:
                     self.throw(self.classes['TypeError'], f"unsupported operator: unable to perform operator {op} on types 'raw {type(self.evaluate(f'{terms[0]}')).__name__}' and 'raw {type(self.evaluate(f"{op_token.join(terms[1:])}")).__name__}'")
-                
-        firstword = self.getfirstword(expr)
         dotparts = expr.split('.')
         if self.isnumber(expr):
             return self.evaluate(f'float (r"{expr}")' if '.' in expr else f'int (r"{expr}")', evalforwhat)
@@ -704,9 +709,13 @@ class LumaInterpreter:
             else:
                 r = self.vars[expr]
             return r
+        elif expr in self.functions.keys():
+            return self.functions[expr]
+        elif expr in self.classes.keys():
+            return self.classes[expr]
         elif expr[0] == '&':
-            data: LumaInterpreter.IntancedLumaObject = self.evaluate(expr[1:])
-            return data.name if type(data) == LumaInterpreter.IntancedLumaObject else "raw"
+            data: LumaInterpreter.LumaClass = self.evaluate(expr[1:])
+            return data.typename if self.get_oldest_parent(type(data)) == LumaInterpreter.LumaClass else "raw"
         elif expr.startswith('r"') and expr.endswith('"'):
             return self.realvalue(expr[2:-1])
         elif expr.startswith('rd"') and expr.endswith('"'):
@@ -728,7 +737,7 @@ class LumaInterpreter:
                     r = instance.callmethod(propertyname, args)
                     return r
                 elif propertyname in instance.classes.keys():
-                    args = self.extractargs(expr.strip(), self.getfirstword(expr.strip()))
+                    args = self.extractargs(expr.strip(), firstword)
                     instance = instance.classes[propertyname].instance(args, evalforwhat)
                     r = instance
                     r.vars = instance.vars.copy()
@@ -738,10 +747,14 @@ class LumaInterpreter:
             else:
                 self.throw(self.classes['NameError'], f"undefined variable '{instancename}'")
         elif firstword in self.classes.keys():
-            args = self.extractargs(expr.strip(), self.getfirstword(expr.strip()))
-            instance = self.classes[self.getfirstword(expr.strip())].instance(args, evalforwhat)
+            args = self.extractargs(expr.strip(), firstword)
+            instance = self.classes[firstword].instance(args, evalforwhat)
             r = instance
             r.vars = instance.vars.copy()
+            return r
+        elif firstword in self.vars.keys():
+            args = self.extractargs(expr.strip(), firstword)
+            r = self.vars[firstword].call(args)
             return r
         elif firstword in self.functions.keys():
             args = self.extractargs(expr.strip(), firstword)
@@ -752,8 +765,63 @@ class LumaInterpreter:
         else:
             self.throw(self.classes['NameError'], f"undefined variable or function '{firstword}'")
 
-    class LumaFunction:
+    
+    class LumaClass:
+        def __init__(self, name: str, glob: dict[str, Any], parents: list[str] = []):
+            self.actualname = name
+            self.typename = f'<class {name}>'
+            self.parents = parents
+            self.glob = glob
+            self.instancen = None
+            self.functions: dict[str, LumaInterpreter.LumaFunction] = {}
+            self.classes: dict[str, LumaInterpreter.LumaClass] = {}
+
+            def stringify(placeholder):
+                return f'<{self.typename} object from luma>'
+            
+            self.functions['@stringify'] = LumaInterpreter.LumaFunction('@stringify', [], stringify, self.glob)
+            self.vars: dict[str] = {}
+
+
+        def call(self, args):
+            self.instance(args, get_current_interpreter(self.glob).generaterandomvarname())
+
+
+        def callmethod(self, method: str, args: list):
+            method: LumaInterpreter.LumaFunction = self.functions[method]
+            r = method.run(args, self)
+            return r
+        
+
+        def instance(self, args: list, name):
+            return LumaInterpreter.IntancedLumaObject(self.vars, self.functions, self.classes, self.actualname, args, name, self.glob, self.parents)
+            
+        
+        def debug(self, trailing: str = '', prnt: bool = True):
+            debugstr = ''
+            debugdict: dict[str, str | list] = {'name': self.typename, 'vars': [], 'functions': {}}
+            debugstr += f'Class: {self.typename}\n'
+            debugstr += 'Functions:\n'
+            for func in self.functions.keys():
+                debugstr += f'    {func}\n'
+                debugdict['functions'][func] = None
+                if type(self.functions[func].body) == str:
+                    debugstr += '    With body:\n'
+                    debugstr += f'        {self.functions[func].body}\n'
+                    debugdict['functions'][func] = self.functions[func].body
+            debugstr += 'Variables:\n'
+            for var in self.vars.keys():
+                debugdict['vars'].append({var: self.vars[var]})
+                debugstr += f'    {var}: {self.vars[var]}\n'
+            debugstr = debugstr[:-1]
+            if prnt:
+                print(debugstr, trailing)
+            return debugstr, debugdict
+        
+
+    class LumaFunction(LumaClass):
         def __init__(self, name: str, args: list[str], body: str | FunctionType, glob: dict[str, Any]):
+            self.typename = 'function'
             self.name = name
             self.args = args
             self.body = body
@@ -787,6 +855,10 @@ class LumaInterpreter:
             return r
         
 
+        def call(self, args):
+            self.run(args)
+        
+
         def bind_values(self, args):
             result = {}
             value_index = 0
@@ -806,54 +878,6 @@ class LumaInterpreter:
                 get_current_interpreter(self.glob).throw(get_current_interpreter(self.glob).classes['TypeError'], f"function '{self.name}' expected {len(self.args)} arguments but got {len(args)}")
 
             return result
-
-    
-    class LumaClass:
-        def __init__(self, name: str, glob: dict[str, Any], parents: list[str] = []):
-            self.name = name
-            self.parents = parents
-            self.glob = glob
-            self.instancen = None
-            self.functions: dict[str, LumaInterpreter.LumaFunction] = {}
-            self.classes: dict[str, LumaInterpreter.LumaClass] = {}
-
-            def stringify(placeholder):
-                return f'<{self.name} object from luma>'
-            
-            self.functions['@stringify'] = LumaInterpreter.LumaFunction('@stringify', [], stringify, self.glob)
-            self.vars: dict[str] = {}
-
-
-        def callmethod(self, method: str, args: list):
-            method: LumaInterpreter.LumaFunction = self.functions[method]
-            r = method.run(args, self)
-            return r
-        
-
-        def instance(self, args: list, name):
-            return LumaInterpreter.IntancedLumaObject(self.vars, self.functions, self.classes, self.name, args, name, self.glob, self.parents)
-            
-        
-        def debug(self, trailing: str = '', prnt: bool = True):
-            debugstr = ''
-            debugdict: dict[str, str | list] = {'name': self.name, 'vars': [], 'functions': {}}
-            debugstr += f'Class: {self.name}\n'
-            debugstr += 'Functions:\n'
-            for func in self.functions.keys():
-                debugstr += f'    {func}\n'
-                debugdict['functions'][func] = None
-                if type(self.functions[func].body) == str:
-                    debugstr += '    With body:\n'
-                    debugstr += f'        {self.functions[func].body}\n'
-                    debugdict['functions'][func] = self.functions[func].body
-            debugstr += 'Variables:\n'
-            for var in self.vars.keys():
-                debugdict['vars'].append({var: self.vars[var]})
-                debugstr += f'    {var}: {self.vars[var]}\n'
-            debugstr = debugstr[:-1]
-            if prnt:
-                print(debugstr, trailing)
-            return debugstr, debugdict
         
     
     class LumaClassDict(LumaClass):
@@ -893,9 +917,13 @@ class LumaInterpreter:
             self.parents = parents
             self.functions = functions
             self.classes = classes
-            self.name = name
+            self.typename = name
             self.glob = glob
             self.instance(args, instancename)
+
+
+        def call(self, args):
+            pass
 
         
         def instance(self, args: list, name):
@@ -905,14 +933,14 @@ class LumaInterpreter:
             interpreter.vars[name].callmethod('constructor', args)
             del interpreter.vars[name]
             if 'BaseError' in self.parents:
-                raise LumaInterpreter.LumaException([self.name, args[0] if len(args) > 0 else ''])
+                raise LumaInterpreter.LumaException([self.typename, args[0] if len(args) > 0 else ''])
 
         
         def __str__(self):
             r = self.functions['@stringify'].run([], self)
             return r
         def __eq__(self, other):
-            r = self.functions['@equal'].run([other], self) if '@equal' in self.functions else (self.vars == other.vars and self.name == other.name)
+            r = self.functions['@equal'].run([other], self) if '@equal' in self.functions else (self.vars == other.vars and self.typename == other.typename)
             return r
         def	__ne__(self, other):
             r = self.functions['@nequal'].run([other], self)
@@ -930,7 +958,7 @@ class LumaInterpreter:
             r = self.functions['@gequal'].run([other], self)
             return r
         def __int__(self):
-            if self.name == 'int':
+            if self.typename == 'int':
                 return self.vars['value']
             else:
                 return None
@@ -940,7 +968,7 @@ class LumaInterpreter:
                 vars_items = tuple(sorted(self.vars.items()))
             except TypeError:
                 raise TypeError("All keys and values in self.vars must be hashable to compute __hash__")
-            return hash((self.name, vars_items))
+            return hash((self.typename, vars_items))
 
 
     class SubProgramExitCode(Exception):

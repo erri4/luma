@@ -9,3 +9,16 @@ set lst to ["hi"]
 show (lst.at (0))
 lst.add ("hello")
 show (lst)
+function test (cls){
+    cls ()
+}
+
+class test2 {
+    constructor test2 (){
+        show ("hi")
+    }
+}
+
+test (test2)
+show (&test2)
+show (&test)
