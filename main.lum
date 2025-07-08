@@ -15,6 +15,12 @@ function fib (n){
     return fib (n - 1) + fib (n - 2)
 }
 
+class customerr (BaseError) {
+    constructor customerr (msg){
+        show ("hi")
+    }
+}
+
 //show (fib (10))
 set i to 0
 while (i < 10){

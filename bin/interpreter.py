@@ -814,6 +814,8 @@ class LumaInterpreter:
             interpreter.vars[name] = self
             interpreter.vars[name].callmethod('constructor', args)
             del interpreter.vars[name]
+            if 'BaseError' in self.parents:
+                raise LumaInterpreter.LumaException([self.name, args[0] if len(args) > 0 else ''])
 
         
         def __str__(self):
@@ -853,6 +855,8 @@ class LumaInterpreter:
 
     class LumaException(Exception):
         def __init__(self, args):
+            self.exc_t = args[0]
+            self.args = args[1:]
             super().__init__(args[0] + ': ' + str(args[1]))
 
 
