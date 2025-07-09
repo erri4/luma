@@ -42,38 +42,29 @@ class valuedObject {
     }
 
     function len (){
-        return int (nativecode (r"len(" + packvalue (this.value) + r")"))
+        return new int (nativecode (r"len(" + packvalue (this.value) + r")"))
     }
 }
 
 class bool (valuedObject) {
     constructor bool (value){
-        if (&value == int or &value == float){
-            set this.value to nativecode (r"bool(" + str (value).value + r")")
-        }
-        else {
-            set this.value to nativecode (r"bool(" + packvalue (value) + r")")
-        }
+        set this.value to nativecode (r"bool(" + packvalue (value) + r")")
     }
 
     function @stringify (){
-        return nativecode (r"str(" + packvalue (this.value) + r").lower()")
-    }
-
-    function @pybool (){
-        return this.value
+        return nativecode (r"str(" + packvalue (this.value) + r")")
     }
 
     function @equal (other){
-        return nativecode (str (this.value).value + r" = " + str (other.value).value)
+        return nativecode (new str (this.value).value + r" = " + new str (other.value).value)
     }
 
     function @nequal (other){
-        return nativecode (str (this.value).value + r" != " + str (other.value).value)
+        return nativecode (new str (this.value).value + r" != " + new str (other.value).value)
     }
 
     function invert (){
-        return bool (nativecode (r"not " + packvalue (this.value)))
+        return new bool (nativecode (r"not " + packvalue (this.value)))
     }
 }
 
@@ -83,19 +74,19 @@ class str (valuedObject) {
     }
 
     function @equal (other){
-        return bool (nativecode (packvalue (this.value) + r" == " + packvalue (str (other.value).value)))
+        return nativecode (packvalue (this.value) + r" == " + packvalue (new str (other.value).value))
     }
 
     function @nequal (other){
-        return bool (nativecode (str (this.value).value + r" != " + str (other.value).value))
+        return nativecode (new str (this.value).value + r" != " + new str (other.value).value)
     }
 
     function @addition (other){
-        return str (this.value + str (other).value)
+        return new str (this.value + new str (other).value)
     }
 
     function @multiplication (other){
-        return str (nativecode (packvalue (this.value) + r" * " + packvalue (other.value)))
+        return new str (nativecode (packvalue (this.value) + r" * " + packvalue (other.value)))
     }
 }
 
@@ -105,52 +96,52 @@ class int (valuedObject) {
     }
 
     function @equal (other){
-        return bool (nativecode (str (this.value).value + r" == " + str (other.value).value))
+        return nativecode (new str (this.value).value + r" == " + new str (other.value).value)
     }
 
     function @nequal (other){
-        return bool (nativecode (str (this.value).value + r" != " + str (other.value).value))
+        return nativecode (new str (this.value).value + r" != " + new str (other.value).value)
     }
 
     function @lequal (other){
-        return bool (nativecode (str (this.value).value + r" <= " + str (other.value).value))
+        return nativecode (new str (this.value).value + r" <= " + new str (other.value).value)
     }
 
     function @lesst (other){
-        return bool (nativecode (str (this.value).value + r" < " + str (other.value).value))
+        return nativecode (new str (this.value).value + r" < " + new str (other.value).value)
     }
 
     function @greatert (other){
-        return bool (nativecode (str (this.value).value + r" > " + str (other.value).value))
+        return nativecode (new str (this.value).value + r" > " + new str (other.value).value)
     }
 
     function @gequal (other){
-        return bool (nativecode (str (this.value).value + r" <= " + str (other.value).value))
+        return nativecode (new str (this.value).value + r" <= " + new str (other.value).value)
     }
 
     function @addition (other){
-        if (&other == &this){
-            return int (nativecode (str (this.value).value + r" + " + str (other).value))
+        if (&other == int){
+            return new int (nativecode (new str (this.value).value + r" + " + new str (other).value))
         }
-        return float (nativecode (str (this.value).value + r" + " + str (other).value))
+        return new float (nativecode (new str (this.value).value + r" + " + new str (other).value))
     }
 
     function @division (other){
-        return float (nativecode (str (this.value).value + r" / " + str (other).value))
+        return new float (nativecode (new str (this.value).value + r" / " + new str (other).value))
     }
 
     function @subtraction (other){
-        if (&other == &this){
-            return int (nativecode (str (this.value).value + r" - " + str (other).value))
+        if (&other == int){
+            return new int (nativecode (new str (this.value).value + r" - " + new str (other).value))
         }
-        return float (nativecode (str (this.value).value + r" - " + str (other).value))
+        return new float (nativecode (new str (this.value).value + r" - " + new str (other).value))
     }
 
     function @multiplication (other){
-        if (&other == &this){
-            return int (nativecode (str (this.value).value + r" * " + str (other).value))
+        if (&other == int){
+            return new int (nativecode (new str (this.value).value + r" * " + new str (other).value))
         }
-        return float (nativecode (str (this.value).value + r" * " + str (other).value))
+        return new float (nativecode (new str (this.value).value + r" * " + new str (other).value))
     }
 }
 
@@ -160,19 +151,19 @@ class float (valuedObject) {
     }
 
     function @addition (other){
-        return float (nativecode (str (this.value).value + r" + " + other.value))
+        return new float (nativecode (new str (this.value).value + r" + " + other.value))
     }
 
     function @division (other){
-        return float (nativecode (str (this.value).value + r" / " + other.value))
+        return new float (nativecode (new str (this.value).value + r" / " + other.value))
     }
 
     function @subtraction (other){
-        return float (nativecode (str (this.value).value + r" - " + other.value))
+        return new float (nativecode (new str (this.value).value + r" - " + other.value))
     }
 
     function @multiplication (other){
-        return float (nativecode (str (this.value).value + r" * " + other.value))
+        return new float (nativecode (new str (this.value).value + r" * " + other.value))
     }
 }
 
@@ -203,11 +194,11 @@ function range (start, end, jump){
 }
 
 function show (data = "", end = "\n"){
-    nativecode ("print(" + str (packvalue (str (data))) + ", end=" + str (packvalue (str (end))) + ")")
+    nativecode ("print(" + new str (packvalue (new str (data))) + ", end=" + new str (packvalue (new str (end))) + ")")
 }
 
 function input (prompt = ""){
-    set inpt to str (nativecode ("input(" + str (packvalue (str (prompt))) + ")"))
+    set inpt to new str (nativecode ("input(" + new str (packvalue (new str (prompt))) + ")"))
     return inpt
 }
 
@@ -215,7 +206,4 @@ function throw (error){
 
 }
 
-
-set true to bool (1)
-set false to bool (0)
-set @file to str (nativecode ("filename"))
+set @file to new str (nativecode ("filename"))

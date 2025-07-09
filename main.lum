@@ -10,7 +10,8 @@ show (lst.at (0))
 lst.add ("hello")
 show (lst)
 function test (cls){
-    cls ()
+    new cls ()
+    new test2 ()
 }
 
 class test2 {
@@ -22,5 +23,5 @@ class test2 {
 test (test2)
 show (&test2)
 show (&test)
-show (&test2 ())
-show ("hi" == "ht")
+show (&new test2 ())
+//show ("hi" == "ht")
