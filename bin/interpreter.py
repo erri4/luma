@@ -1,4 +1,4 @@
-from types import FunctionType, ModuleType
+from types import FunctionType, ModuleType, NoneType
 from io import TextIOWrapper
 from typing import Any
 import operator
@@ -13,6 +13,8 @@ import os
 '''
 TODO:
 OPTIMIZE
+. better bool
+
 . handling errors (interpreter AND luma)
 
 . python objects access from luma # for libraries like socket
@@ -406,6 +408,7 @@ class LumaInterpreter:
         elif lnstartswith('return'):
             if line == 'return': return
             value = line[7:]
+            log(line)
             r = self.evaluate(value.strip())
             return r
         elif line == 'again':
@@ -712,8 +715,8 @@ class LumaInterpreter:
         elif expr in self.classes.keys():
             return self.classes[expr]
         elif expr[0] == '&':
-            data: LumaInterpreter.LumaClass = self.evaluate(expr[1:])
-            return data.typename if self.get_oldest_parent(type(data)) == LumaInterpreter.LumaClass else "raw"
+            data: LumaInterpreter.LumaClass | Any = self.evaluate(expr[1:])
+            return self.classes[data.typename] if self.get_oldest_parent(type(data)) == LumaInterpreter.LumaClass else self.classes["raw"]
         elif expr.startswith('r"') and expr.endswith('"'):
             return self.realvalue(expr[2:-1])
         elif expr.startswith('rd"') and expr.endswith('"'):
@@ -761,13 +764,16 @@ class LumaInterpreter:
         elif expr.startswith('(') and expr.endswith(')'):
             return self.evaluate(expr[1:-1])
         else:
-            self.throw(self.classes['NameError'], f"undefined variable or function '{firstword}'")
+            try:
+                return self.evaluate('true') if self.evaluatecond(self.processcondition(expr)) == True else self.evaluate('false')
+            except Exception:
+                self.throw(self.classes['NameError'], f"undefined variable or function '{firstword}'")
 
     
     class LumaClass:
         def __init__(self, name: str, glob: dict[str, Any], parents: list[str] = []):
             self.actualname = name
-            self.typename = f'<class {name}>'
+            self.typename = f'classType'
             self.parents = parents
             self.glob = glob
             self.instancen = None
@@ -779,6 +785,10 @@ class LumaInterpreter:
             
             self.functions['@stringify'] = LumaInterpreter.LumaFunction('@stringify', [], stringify, self.glob)
             self.vars: dict[str] = {}
+
+
+        def __str__(self):
+            return f'<class {self.actualname}>'
 
 
         def call(self, args):
@@ -819,7 +829,7 @@ class LumaInterpreter:
 
     class LumaFunction(LumaClass):
         def __init__(self, name: str, args: list[str], body: str | FunctionType, glob: dict[str, Any]):
-            self.typename = 'function'
+            self.typename = 'functionType'
             self.name = name
             self.args = args
             self.body = body
@@ -831,7 +841,7 @@ class LumaInterpreter:
             interpreter: LumaInterpreter = get_current_interpreter(self.glob)
             if varsholder == None:
                 varsholder = interpreter.vars
-            if Object:
+            if type(Object) != NoneType:
                 argdict['this'] = Object
             interpreter.localparams.append(argdict)
             orig_func = set(interpreter.functions.keys())
@@ -842,6 +852,8 @@ class LumaInterpreter:
                 rargs = []
                 for key in argdict:
                     rargs.append(argdict[key])
+                if self.name == 'nativecode':
+                    print(rargs, args)
                 r = self.body(*rargs)
             added_keys = set(interpreter.functions.keys()) - orig_func
             for key in added_keys:
@@ -960,7 +972,12 @@ class LumaInterpreter:
                 return self.vars['value']
             else:
                 return None
-            
+        def __bool__(self):
+            try:
+                r = self.functions['@pybool'].run([], self)
+                return r
+            except Exception:
+                return False
         def __hash__(self):
             try:
                 vars_items = tuple(sorted(self.vars.items()))
