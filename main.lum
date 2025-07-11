@@ -1,27 +1,3 @@
-set dct to {0: "g", 1: "h"}
-show (dct.at (1))
-dct.set (1, "t")
-show (dct.at (1))
+set dct to {0: "hello"}
 show (dct.at (0))
-show (dct)
-show (dct.len ())
-set lst to ["hi"]
-show (lst.at (0))
-lst.add ("hello")
-show (lst)
-function test (cls){
-    new cls ()
-    new test2 ()
-}
-
-class test2 {
-    constructor test2 (){
-        show ("hi")
-    }
-}
-
-test (test2)
-show (&test2)
-show (&test)
-show (&new test2 ())
-//show ("hi" == "ht")
+show (dct.at (0))

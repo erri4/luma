@@ -46,28 +46,6 @@ class valuedObject {
     }
 }
 
-class bool (valuedObject) {
-    constructor bool (value){
-        set this.value to nativecode (r"bool(" + packvalue (value) + r")")
-    }
-
-    function @stringify (){
-        return nativecode (r"str(" + packvalue (this.value) + r")")
-    }
-
-    function @equal (other){
-        return nativecode (new str (this.value).value + r" = " + new str (other.value).value)
-    }
-
-    function @nequal (other){
-        return nativecode (new str (this.value).value + r" != " + new str (other.value).value)
-    }
-
-    function invert (){
-        return new bool (nativecode (r"not " + packvalue (this.value)))
-    }
-}
-
 class str (valuedObject) {
     constructor str (value){
         set this.value to nativecode (r"str(" + packvalue (value) + r")")
