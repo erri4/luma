@@ -15,6 +15,8 @@ TODO:
 OPTIMIZE
 . better bool
 
+everything stored in self.globals
+
 . handling errors (interpreter AND luma)
 
 . python objects access from luma # for libraries like socket
@@ -39,7 +41,7 @@ class LumaInterpreter:
         '/': operator.truediv,
         '*': operator.mul,
     }
-    PY_IMPL_CLASSES = ['bool', 'dict', 'list']
+    PY_IMPL_CLASSES = ['bool', 'dict']
     NUMBER_RE = re.compile(r"^[+-]?\d+(\.\d+)?$")
     LOGICAL_OP_RE = re.compile(r'\s*(' + '|'.join(re.escape(op) for op in LOGICAL_OPERATORS) + r')\s*')
 
@@ -77,8 +79,6 @@ class LumaInterpreter:
 
         dictcls = self.LumaClassDict('dict', glob)
         self.classes['dict'] = dictcls
-        listcls = self.LumaClassList('list', glob)
-        self.classes['list'] = listcls
         boolcls = self.LumaClassBool('bool', glob)
         self.classes['bool'] = boolcls
 
@@ -669,6 +669,18 @@ class LumaInterpreter:
             return d
         out = {}
         for k, v in d.items():
+            if isinstance(k, dict):
+                k = self.copy_dict(k)
+            elif isinstance(k, list):
+                k = [self.copy_dict(i) if isinstance(i, dict) else i for i in k]
+            elif isinstance(k, LumaInterpreter.IntancedLumaObject):
+                obj_copy = copy.copy(k)
+                obj_copy.vars = self.copy_dict(k.vars)
+                obj_copy.functions = k.functions.copy()
+                obj_copy.classes = k.classes.copy()
+                if hasattr(k, 'value'):
+                    obj_copy.value = self.copy_dict(k.value)
+                k = obj_copy
             if isinstance(v, dict):
                 out[k] = self.copy_dict(v)
             elif isinstance(v, list):
@@ -691,6 +703,7 @@ class LumaInterpreter:
             evalforwhat = self.generaterandomvarname()
         firstword = self.getfirstword(expr.strip())
         
+        expr = expr.strip()
         scopes: list[dict[str, LumaInterpreter.IntancedLumaObject]] = self.reverse_list(self.localparams)
         for scope in scopes:
             if expr in scope.keys():
@@ -704,7 +717,12 @@ class LumaInterpreter:
                 return r
             elif firstword in scope.keys():
                 args = self.extractargs(expr.strip(), firstword)
-                r = scope[firstword].call(args)
+                tmp = scope[firstword].call(args)
+                r = copy.copy(tmp)
+                if type(tmp) == LumaInterpreter.IntancedLumaObject:
+                    r.vars = tmp.vars.copy()
+                    if hasattr(r, 'value'):
+                        r.value = self.copy_dict(tmp.value)
                 return r
         for op in self.OPERATORS:
             op_token = f' {op} '
@@ -738,7 +756,7 @@ class LumaInterpreter:
             return self.evaluate(f'new str (r"{expr[1:-1]}")', evalforwhat)
         elif expr in self.vars.keys():
             if type(self.vars[expr]) == LumaInterpreter.IntancedLumaObject:
-                r = self.vars[expr]
+                r = copy.copy(self.vars[expr])
                 r.vars = self.copy_dict(self.vars[expr].vars)
                 if hasattr(r, 'value'):
                     r.value = self.copy_dict(self.vars[expr].value)
@@ -758,7 +776,7 @@ class LumaInterpreter:
             return self.realvalue(expr[2:-1])
         elif expr.startswith('rd"') and expr.endswith('"'):
             return self.realvalue(expr[3:-1], True)
-        elif expr.count('.') > 0 and len(self.smrtsplt(expr, '.')) > 1:
+        elif len(self.smrtsplt(expr, '.')) > 1:
             i = 0
             instancename = dotparts[i]
             while not self.termisclosed(instancename):
@@ -771,8 +789,13 @@ class LumaInterpreter:
                 if propertyname in instance.vars.keys():
                     return instance.vars[propertyname]
                 elif propertyname in instance.functions.keys():
-                    args = self.extractargs(expr.strip(), f'{instancename}.{propertyname}')
-                    r = instance.callmethod(propertyname, args)
+                    args = self.extractargs(expr, f'{instancename}.{propertyname}')
+                    tmp = instance.callmethod(propertyname, args)
+                    r = copy.copy(tmp)
+                    if type(tmp) == LumaInterpreter.IntancedLumaObject:
+                        r.vars = tmp.vars.copy()
+                        if hasattr(r, 'value'):
+                            r.value = self.copy_dict(tmp.value)
                     return r
                 elif propertyname in instance.classes.keys():
                     args = self.extractargs(expr.strip(), firstword)
@@ -798,11 +821,21 @@ class LumaInterpreter:
             return r
         elif firstword in self.vars.keys():
             args = self.extractargs(expr.strip(), firstword)
-            r = self.vars[firstword].call(args)
+            tmp = self.vars[firstword].call(args)
+            r = copy.copy(tmp)
+            if type(tmp) == LumaInterpreter.IntancedLumaObject:
+                r.vars = tmp.vars.copy()
+                if hasattr(r, 'value'):
+                    r.value = self.copy_dict(tmp.value)
             return r
         elif firstword in self.functions.keys():
             args = self.extractargs(expr.strip(), firstword)
-            r = self.functions[firstword].run(args)
+            tmp = self.functions[firstword].run(args)
+            r = copy.copy(tmp)
+            if type(tmp) == LumaInterpreter.IntancedLumaObject:
+                r.vars = tmp.vars.copy()
+                if hasattr(r, 'value'):
+                    r.value = self.copy_dict(tmp.value)
             return r
         elif expr.startswith('(') and expr.endswith(')'):
             return self.evaluate(expr[1:-1])
@@ -961,22 +994,6 @@ class LumaInterpreter:
                 return get_current_interpreter(glob).evaluate(f'new int (r"{len(this.value)}")')
             
             self.functions['len'] = LumaInterpreter.LumaFunction('len', [], length, self.glob)
-
-
-    class LumaClassList(LumaClassDict):
-        def __init__(self, name, glob, parents=[]):
-            super().__init__(name, glob, parents)
-
-            def stringify(this = None):
-                return str([str(v) for k, v in this.value.items()])
-            
-            self.functions['@stringify'] = LumaInterpreter.LumaFunction('@stringify', [], stringify, self.glob)
-
-            def add(value, this = None):
-                pos = get_current_interpreter(self.glob).evaluate(f'new int (r"{len(this.value)}")')
-                this.value[pos] = value
-            
-            self.functions['add'] = LumaInterpreter.LumaFunction('add', [{'name': 'value'}], add, self.glob)
 
 
     class LumaClassBool(LumaClass):
