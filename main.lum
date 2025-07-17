@@ -1,3 +1,4 @@
-set dct to {0: "hello"}
-show (dct.at (0))
-show (dct.at (0))
+show ("hi" == "hh")
+if ("hh" == "hh"){
+    show ("hello")
+}

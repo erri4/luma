@@ -13,9 +13,7 @@ import os
 '''
 TODO:
 OPTIMIZE
-. better bool
-
-everything stored in self.globals
+. everything stored in self.globals
 
 . handling errors (interpreter AND luma)
 
@@ -200,7 +198,7 @@ class LumaInterpreter:
                     self.runsubprogram(body, infunc=False)
                     self.runsubprogram(f'set {name} to module ()')
         except FileNotFoundError:
-            self.throw(self.classes['ModuleNotFoundError'], f"No module named '{module}'")
+            self.throw(self.classes['ModuleNotFoundError'], f"No module named '{module}'", 'idk', f'import {module}' + f' as {name}' if name else '', self.filename)
     
     def runsubprogram(self, subprogram: str, Object = None, infunc: bool = True, realfunc: bool = False):
         if Object == None:
@@ -330,7 +328,6 @@ class LumaInterpreter:
                         break
                 stop += len(linee) + 1
             body = a[a.find('){') + 3:stop].strip()
-            condition = self.processcondition(condition)
             conditions = []
             bodys = []
             linenu = int(linenum) + len(body.splitlines()) + 2
@@ -349,7 +346,7 @@ class LumaInterpreter:
                             break
                     stop += len(linee) + 1
                 bd = a[a.find('){') + 3:stop].strip()
-                conditions.append(self.processcondition(cond))
+                conditions.append(cond)
 
                 bodys.append(bd)
                 linenu += len(bd.splitlines()) + 2
@@ -373,14 +370,14 @@ class LumaInterpreter:
                     stop += len(linee) + 1
                 elsebody = a[a.find('{') + 2:stop].strip()
             r = None
-            if self.evaluatecond(condition):
+            if bool(self.evaluate(condition)):
                 r = self.runsubprogram(body)
             else:
                 foundelif = False
                 for i in range(len(conditions)):
                     con = conditions[i]
                     bd: str = bodys[i]
-                    if self.evaluatecond(con):
+                    if self.evaluate(con):
                         r = self.runsubprogram(bd)
                         foundelif = True
                         break
@@ -397,19 +394,16 @@ class LumaInterpreter:
                         break
                 stop += len(linee) + 1
             body = a[a.find('){') + 3:stop].strip()
-            processedcondition = self.processcondition(condition)
-            while self.evaluatecond(processedcondition):
+            while self.evaluate(condition):
                 try:
                     self.runsubprogram(body)
                 except LumaInterpreter.SubProgramExitCode as e:
                     if e.code == 'stop':
                         break
                     elif e.code == 'again':
-                        processedcondition = self.processcondition(condition)
                         continue
                     else:
                         raise LumaInterpreter.SubProgramExitCode(e.code, e.data)
-                processedcondition = self.processcondition(condition)
         elif firstword == 'return':
             if line == 'return': return
             value = line[7:]
@@ -439,9 +433,9 @@ class LumaInterpreter:
                     args = self.extractargs(line.strip(), self.getfirstword(line.strip()))
                     instance = instance.classes[propertyname].instance(args, self.generaterandomvarname())
                 else:
-                    self.throw(self.classes['NameError'], f"{instancename} has no attribute '{propertyname}'")
+                    self.throw(self.classes['NameError'], f"{instancename} has no attribute '{propertyname}'", linenum, line, self.filename)
             else:
-                self.throw(self.classes['NameError'], f"undefined variable '{instancename}'")
+                self.throw(self.classes['NameError'], f"undefined variable '{instancename}'", linenum, line, self.filename)
         else:
             if firstword in functions.keys():
                 func_name = firstword
@@ -459,12 +453,12 @@ class LumaInterpreter:
                         isclass = True
                 except:
                     pass
-                self.throw(self.classes['TypeError'], 'object of type classType is not callable') if isclass else self.throw(self.classes['NameError'], f"undefined function {firstword}")
+                self.throw(self.classes['TypeError'], 'object of type classType is not callable. did you forgot to use new?', linenum, line, self.filename) if isclass else self.throw(self.classes['NameError'], f"undefined function {firstword}", linenum, line, self.filename)
 
 
-    def throw(self, exc, msg):
+    def throw(self, exc, msg, linenum, line, file):
         exc: LumaInterpreter.LumaClass = exc
-        exc.functions['constructor'].run([msg])
+        exc.functions['constructor'].run([f'\n{msg}\n    at line {linenum} in {line}\n    at file {file}'])
     
 
     def processcondition(self, condition: str):
@@ -585,7 +579,7 @@ class LumaInterpreter:
                     i += 1
                 else:
                     result = val
-        return result
+        return self.evaluate(f'new bool ({int(result)})')
 
     def eval_single_condition(self, parts):
         left, op, right = parts
@@ -617,6 +611,15 @@ class LumaInterpreter:
         cp.vars = obj.vars.copy()
         return cp
     
+
+    def is_condition_expression(self, expr: str) -> bool:
+        operand = r"(?:[a-zA-Z_][\w\.]*|'[^']*'|\"[^\"]*\"|\d+(?:\.\d+)?)"
+        comp_op = r"(==|<=|=<|>=|>|<)"
+        condition = rf"(not\s+)?{operand}\s*{comp_op}\s*{operand}"
+        full_pattern = rf"^{condition}(\s+(and|or)\s+{condition})*$"
+
+        return bool(re.fullmatch(full_pattern, expr.strip()))
+
 
     def get_oldest_parent(self, cls):
         for ancestor in reversed(cls.__mro__):
@@ -724,6 +727,10 @@ class LumaInterpreter:
                     if hasattr(r, 'value'):
                         r.value = self.copy_dict(tmp.value)
                 return r
+        if self.is_condition_expression(expr):
+            processedcond = self.processcondition(expr)
+            r = self.evaluatecond(processedcond)
+            return r
         for op in self.OPERATORS:
             op_token = f' {op} '
             if op_token not in expr:
@@ -738,11 +745,11 @@ class LumaInterpreter:
                         opstrr = self.evaluate(opstr)
                         return opstrr
                     else:
-                        self.throw(self.classes['TypeError'], f"unsupported operator: unable to perform operator {op} on types '{self.evaluate(f'&{terms[0]}')}' and '{self.evaluate(f"&{op_token.join(terms[1:])}")}'")
+                        self.throw(self.classes['TypeError'], f"unsupported operator: unable to perform operator {op} on types '{self.evaluate(f'&{terms[0]}')}' and '{self.evaluate(f"&{op_token.join(terms[1:])}")}'", 'idk', expr, self.filename)
                 try:
                     return self.REAL_OPERATORS[op](term0, self.evaluate(terms[-1]))
                 except TypeError:
-                    self.throw(self.classes['TypeError'], f"unsupported operator: unable to perform operator {op} on types 'raw {type(self.evaluate(f'{terms[0]}')).__name__}' and 'raw {type(self.evaluate(f"{op_token.join(terms[1:])}")).__name__}'")
+                    self.throw(self.classes['TypeError'], f"unsupported operator: unable to perform operator {op} on types 'raw {type(self.evaluate(f'{terms[0]}')).__name__}' and 'raw {type(self.evaluate(f"{op_token.join(terms[1:])}")).__name__}'", 'idk', expr, self.filename)
         dotparts = expr.split('.')
         if self.isnumber(expr):
             return self.evaluate(f'new float (r"{expr}")' if '.' in expr else f'new int (r"{expr}")', evalforwhat)
@@ -806,9 +813,9 @@ class LumaInterpreter:
                         r.value = self.copy_dict(instance.value)
                     return r
                 else:
-                    self.throw(self.classes['NameError'], f"{instancename} has no attribute '{propertyname}'")
+                    self.throw(self.classes['NameError'], f"{instancename} has no attribute '{propertyname}'", 'idk', expr, self.filename)
             else:
-                self.throw(self.classes['NameError'], f"undefined variable '{instancename}'")
+                self.throw(self.classes['NameError'], f"undefined variable '{instancename}'", 'idk', expr, self.filename)
         elif firstword == 'new':
             firstword = self.getfirstword(expr[4:])
             args = self.extractargs(expr[4:].strip(), firstword)
@@ -846,7 +853,7 @@ class LumaInterpreter:
                     isclass = True
             except:
                 pass
-            self.throw(self.classes['TypeError'], 'object of type classType is not callable') if isclass else self.throw(self.classes['NameError'], f"undefined variable or function '{firstword}'")
+            self.throw(self.classes['TypeError'], 'object of type classType is not callable. did you forgot to use new?', 'idk', expr, self.filename) if isclass else self.throw(self.classes['NameError'], f"undefined variable or function '{firstword}'", 'idk', expr, self.filename)
 
     
     class LumaClass:
@@ -864,6 +871,10 @@ class LumaInterpreter:
             
             self.functions['@stringify'] = LumaInterpreter.LumaFunction('@stringify', [], stringify, self.glob)
             self.vars: dict[str, LumaInterpreter.IntancedLumaObject | dict] = {}
+
+
+        def __lbool__(self):
+            return True
 
 
         def __str__(self):
@@ -920,7 +931,7 @@ class LumaInterpreter:
             interpreter: LumaInterpreter = get_current_interpreter(self.glob)
             if varsholder == None:
                 varsholder = interpreter.vars
-            if Object:
+            if not Object is None:
                 argdict['this'] = Object
             interpreter.localparams.append(argdict)
             orig_func = set(interpreter.functions.keys())
@@ -959,10 +970,10 @@ class LumaInterpreter:
                 elif 'default' in var:
                     result[name] = var['default']
                 else:
-                    get_current_interpreter(self.glob).throw(get_current_interpreter(self.glob).classes['TypeError'], f"function '{self.name}' expected {len(self.args)} arguments but got {len(args)}")
+                    get_current_interpreter(self.glob).throw(get_current_interpreter(self.glob).classes['TypeError'], f"function '{self.name}' expected {len(self.args)} arguments but got {len(args)}", 'idk', 'idk bro', get_current_interpreter(self.glob).filename)
 
             if value_index < len(args):
-                get_current_interpreter(self.glob).throw(get_current_interpreter(self.glob).classes['TypeError'], f"function '{self.name}' expected {len(self.args)} arguments but got {len(args)}")
+                get_current_interpreter(self.glob).throw(get_current_interpreter(self.glob).classes['TypeError'], f"function '{self.name}' expected {len(self.args)} arguments but got {len(args)}", 'idk', 'idk bro', get_current_interpreter(self.glob).filename)
 
             return result
         
@@ -995,12 +1006,20 @@ class LumaInterpreter:
             
             self.functions['len'] = LumaInterpreter.LumaFunction('len', [], length, self.glob)
 
+            def lbool(this = None):
+                return get_current_interpreter(self.glob).evaluate(f'new bool ({len(this.value)})')
+            
+            self.functions['@bool'] = LumaInterpreter.LumaFunction('@bool', [], lbool, self.glob)
+
 
     class LumaClassBool(LumaClass):
         def __init__(self, name, glob, parents = []):
             super().__init__(name, glob, parents)
-            def constructor(value: bool, this = None):
-                this.value = value
+            def constructor(value, this = None):
+                if get_current_interpreter(self.glob).get_oldest_parent(type(value)) == LumaInterpreter.LumaClass:
+                    this.value = bool(self.lbool(value))
+                else:
+                    this.value = bool(value)
             
             self.functions['constructor'] = LumaInterpreter.LumaFunction('constructor', [{'name': 'value'}], constructor, glob)
 
@@ -1013,6 +1032,10 @@ class LumaInterpreter:
                 this.value = not this.value
             
             self.functions['invert'] = LumaInterpreter.LumaFunction('invert', [], invert, self.glob)
+            
+
+        def lbool(self, value):
+            return value.__lbool__()
 
 
     class IntancedLumaObject(LumaClass):
@@ -1026,8 +1049,8 @@ class LumaInterpreter:
             self.instance(args, instancename)
 
 
-        def call(self, args):
-            pass
+        def call(self, *args):
+            get_current_interpreter(self.glob).throw(get_current_interpreter(self.glob).classes['TypeError'], f'object of type {self.typename} is not callable', 'idk', 'idk', get_current_interpreter(self.glob).filename)
 
         
         def instance(self, args: list, name):
@@ -1043,6 +1066,13 @@ class LumaInterpreter:
         def __str__(self):
             r = self.functions['@stringify'].run([], self)
             return r
+        def __lbool__(self):
+            r = self.functions['@bool'].run([], self)
+            return r
+        def __bool__(self):
+            if self.typename == 'bool':
+                return self.value
+            return bool(super())
         def __eq__(self, other):
             if self.typename in get_current_interpreter(self.glob).PY_IMPL_CLASSES:
                 return self.value == other.value
@@ -1068,7 +1098,6 @@ class LumaInterpreter:
                 return self.vars['value']
             else:
                 return None
-            
         def __hash__(self):
             try:
                 vars_items = sorted(self.vars.items())

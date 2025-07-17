@@ -51,6 +51,10 @@ class str (valuedObject) {
         set this.value to nativecode (r"str(" + packvalue (value) + r")")
     }
 
+    function @bool (){
+        return new bool (nativecode (r"bool(" + packvalue (this.value) + r")"))
+    }
+
     function @equal (other){
         return nativecode (packvalue (this.value) + r" == " + packvalue (new str (other.value).value))
     }
@@ -71,6 +75,10 @@ class str (valuedObject) {
 class int (valuedObject) {
     constructor int (value){
         set this.value to nativecode (r"int(" + packvalue (value) + r")")
+    }
+
+    function @bool (){
+        return new bool (nativecode (r"bool(" + new str (this.value).value + r")"))
     }
 
     function @equal (other){
@@ -185,3 +193,5 @@ function throw (error){
 }
 
 set @file to new str (nativecode ("filename"))
+set true to new bool (1)
+set false to new bool (0)
