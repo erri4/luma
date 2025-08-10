@@ -1,4 +1,1 @@
-show ("hi" == "hh")
-if ("hh" == "hh"){
-    show ("hello")
-}
+show (0 + 1)

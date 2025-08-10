@@ -38,7 +38,7 @@ class valuedObject {
     }
 
     function @stringify (){
-        return nativecode (r"str(" + packvalue (this.value) + r")")
+        return nativecode (r"str(val)", {r"val": this.value})
     }
 
     function len (){
@@ -107,7 +107,7 @@ class int (valuedObject) {
 
     function @addition (other){
         if (&other == int){
-            return new int (nativecode (new str (this.value).value + r" + " + new str (other).value))
+            return new int (nativecode ("thisval + otherval", {"thisval": this.value, "otherval": other.value}))
         }
         return new float (nativecode (new str (this.value).value + r" + " + new str (other).value))
     }
@@ -162,29 +162,29 @@ class list (dict) {
         set r to "["
         set i to 0
         while (i < this.len ()){
-            if (not i == this.len () - 1){
-                set r to r + packvalue (this.at (i)) + ", "
+            if (i == this.len () - 1){
+                set r to r + new str (this.at (i))
             }
             else {
-                set r to r + packvalue (this.at (i))
+                set r to r + new str (this.at (i)) + ", "
             }
             set i to i + 1
         }
         set r to r + "]"
-        return r.value
+        return r
     }
 }
 
 function range (start, end, jump){
-
+    // NOTE: implement this
 }
 
 function show (data = "", end = "\n"){
-    nativecode ("print(" + new str (packvalue (new str (data))) + ", end=" + new str (packvalue (new str (end))) + ")")
+    nativecode ("print(data, end=str(endchar))", {"data": data, "endchar": end})
 }
 
 function input (prompt = ""){
-    set inpt to new str (nativecode ("input(" + new str (packvalue (new str (prompt))) + ")"))
+    set inpt to new str (nativecode ("input(prompt)", {"prompt": prompt}))
     return inpt
 }
 
