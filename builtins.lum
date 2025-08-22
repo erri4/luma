@@ -107,7 +107,10 @@ class int (valuedObject) {
 
     function @addition (other){
         if (&other == int){
-            return new int (nativecode ("thisval + otherval", {"thisval": this.value, "otherval": other.value}))
+            set kwargs to {}
+            kwargs.set ("thisval", this.value)
+            kwargs.set ("otherval", other.value)
+            return new int (nativecode ("thisval + otherval", kwargs))
         }
         return new float (nativecode (new str (this.value).value + r" + " + new str (other).value))
     }
