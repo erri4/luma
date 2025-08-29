@@ -9,6 +9,19 @@ import re
 import os
 
 
+####### for removal
+# also LumaInterpreter.InstancedLumaObject.debug
+
+def cp(f):
+    def wrapper(*args, **kwargs):
+        return copy.deepcopy(f(*args, **kwargs))
+
+    return wrapper
+
+def log(*texts):
+    if len(texts) == 0: return
+    with open("log.txt", "a") as logf:
+        logf.write(", ".join(map(str, texts)) + "\n")
 ###################################################
 """
 TODO:
@@ -79,7 +92,6 @@ class LumaInterpreter:
             )
             for key in list(data.keys()):
                 data[str(key)] = data[key]
-            log(*data.values())
             r = eval(str(pytext), globs | data)
             return r
 
@@ -355,12 +367,9 @@ class LumaInterpreter:
             if varname.count(".") == 1:
                 instancename = varname.split(".")[0]
                 if instancename == "this":
-                    scopes: list[dict[str, LumaInterpreter.IntancedLumaObject]] = (
-                        LumaInterpreter.reverse_list(self.localparams)
-                    )
-                    for scope in scopes:
-                        if "this" in scope.keys():
-                            scope["this"].vars[varname.split(".")[1]] = value
+                    scope: dict[str, LumaInterpreter.IntancedLumaObject] = self.localparams[-1]
+                    if "this" in scope.keys():
+                        scope["this"].vars[varname.split(".")[1]] = value
                 elif varname.split(".")[0] in self.vars.keys():
                     varis[instancename].vars[varname.split(".")[1]] = value
             else:
@@ -815,32 +824,29 @@ class LumaInterpreter:
         firstword = LumaInterpreter.getfirstword(expr.strip())
 
         expr = expr.strip()
-        scopes: list[dict[str, LumaInterpreter.IntancedLumaObject]] = (
-            LumaInterpreter.reverse_list(self.localparams)
-        )
-        for scope in scopes:
-            if expr in scope.keys():
-                if type(scope[expr]) is LumaInterpreter.IntancedLumaObject and not doyouwantit:
-                    r = copy.copy(scope[expr])
-                    r.vars = LumaInterpreter.copy_dict(scope[expr].vars)
-                    if hasattr(r, "value"):
-                        r.value = LumaInterpreter.copy_dict(scope[expr].value)
-                else:
-                    r = scope[expr]
-                return r
-            elif firstword in scope.keys():
-                args = self.extractargs(expr.strip(), firstword)
-                tmp: LumaInterpreter.IntancedLumaObject = scope[firstword].call(args)
-                r = copy.copy(tmp)
-                if type(tmp) is LumaInterpreter.IntancedLumaObject and not doyouwantit:
-                    r.vars = LumaInterpreter.copy_dict(tmp.vars)
-                    if hasattr(r, "value"):
-                        r.value = LumaInterpreter.copy_dict(tmp.value)
-                return r
+        scope = self.localparams[-1] if self.localparams else {}
+        if expr in scope.keys():
+            if type(scope[expr]) is LumaInterpreter.IntancedLumaObject and not doyouwantit:
+                r = copy.copy(scope[expr])
+                r.vars = LumaInterpreter.copy_dict(scope[expr].vars)
+                if hasattr(r, "value"):
+                    r.value = LumaInterpreter.copy_dict(scope[expr].value)
+            else:
+                r = scope[expr]
+            return r
+        elif firstword in scope.keys():
+            args = self.extractargs(expr.strip(), firstword)
+            tmp: LumaInterpreter.IntancedLumaObject = scope[firstword].call(args)
+            r = copy.copy(tmp)
+            if type(tmp) is LumaInterpreter.IntancedLumaObject and not doyouwantit:
+                r.vars = LumaInterpreter.copy_dict(tmp.vars)
+                if hasattr(r, "value"):
+                    r.value = LumaInterpreter.copy_dict(tmp.value)
+            return r
         if firstword == "this":
             LumaInterpreter.throw(
                 self.classes["TypeError"],
-                "cannot use this outside class method call",
+                "cannot use 'this' outside class method call",
                 "idk",
                 "idk",
                 self.filename,
@@ -929,11 +935,6 @@ class LumaInterpreter:
                 instancename += "." + dotparts[i]
             propertyname = LumaInterpreter.getfirstword(dotparts[i + 1])
             instance: LumaInterpreter.IntancedLumaObject = self.evaluate(instancename)
-            if instancename == "other":
-                log(
-                    instance.vars[list(instance.vars.keys())[0]],
-                    list(instance.vars.keys())[0],
-                )
             if instance:
                 if propertyname in instance.vars.keys():
                     r = instance.vars[propertyname]
@@ -1138,7 +1139,7 @@ class LumaInterpreter:
 
         def run(
             self, args: list, Object=None, varsholder=None
-        ) -> "Any | LumaInterpreter.IntancedLumaObject":
+        ) -> "Any | LumaInterpreter.IntancedLumaObject | None ":
             interpreter: LumaInterpreter | None = (
                 LumaInterpreter.get_current_interpreter(self.glob)
             )
@@ -1444,8 +1445,3 @@ class LumaInterpreter:
             self.exc_t = args[0]
             self.args = args[1:]
             super().__init__(args[0] + ": " + str(args[1]))
-
-
-def log(*texts):
-    with open("log.txt", "a") as logf:
-        logf.write(", ".join(map(str, texts)) + "\n")
