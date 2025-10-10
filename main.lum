@@ -1,6 +1,1 @@
-set dct to {0: "hello"}
-show (dct.at (0))
-dct.set ("pp", "small")
-show (dct.at (0))
-show (dct)
-show (dct.at ("pp"))
+show (range (0, 10))

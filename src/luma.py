@@ -2,7 +2,7 @@ from interpreter import LumaInterpreter
 import sys
 
 
-# profile: python -m cProfile -s tottime your_script.py
+# profile: python -m cProfile -s tottime ./src/luma.py ./main.lum
 
 if __name__ == "__main__":
     filename = sys.argv[1]

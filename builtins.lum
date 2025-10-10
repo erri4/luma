@@ -38,29 +38,29 @@ class valuedObject {
     }
 
     function @stringify (){
-        return nativecode (r"str(val)", {r"val": this.value})
+        return nativecode (r$str(val)$, {r$val$: this.value})
     }
 
     function len (){
-        return new int (nativecode (r"len(" + packvalue (this.value) + r")"))
+        return new int (nativecode (r$len($ + packvalue (this.value) + r$)$))
     }
 }
 
 class str (valuedObject) {
     constructor str (value){
-        set this.value to nativecode (r"str(" + packvalue (value) + r")")
+        set this.value to nativecode (r$str($ + packvalue (value) + r$)$)
     }
 
     function @bool (){
-        return new bool (nativecode (r"bool(" + packvalue (this.value) + r")"))
+        return new bool (nativecode (r$bool($ + packvalue (this.value) + r$)$))
     }
 
     function @equal (other){
-        return nativecode (packvalue (this.value) + r" == " + packvalue (new str (other.value).value))
+        return new bool (nativecode (packvalue (this.value) + r$ == $ + packvalue (new str (other.value).value)))
     }
 
     function @nequal (other){
-        return nativecode (new str (this.value).value + r" != " + new str (other.value).value)
+        return new bool (nativecode ("thisval != otherval", {"thisval": this.value, "otherval": other.value}))
     }
 
     function @addition (other){
@@ -68,91 +68,100 @@ class str (valuedObject) {
     }
 
     function @multiplication (other){
-        return new str (nativecode (packvalue (this.value) + r" * " + packvalue (other.value)))
+        return new str (nativecode (packvalue (this.value) + r$ * $ + packvalue (other.value)))
+    }
+
+    function @repr (){
+        return new str (nativecode ("reprify (thisval)", {"thisval": this.value}))
     }
 }
 
 class int (valuedObject) {
     constructor int (value){
-        set this.value to nativecode (r"int(" + packvalue (value) + r")")
+        set this.value to nativecode (r$int($ + packvalue (value) + r$)$)
     }
 
     function @bool (){
-        return new bool (nativecode (r"bool(" + new str (this.value).value + r")"))
+        return new bool (nativecode (r$bool($ + new str (this.value).value + r$)$))
     }
 
     function @equal (other){
-        return nativecode (new str (this.value).value + r" == " + new str (other.value).value)
+        return new bool (nativecode ("thisval == otherval", {"thisval": this.value, "otherval": other.value}))
     }
 
     function @nequal (other){
-        return nativecode (new str (this.value).value + r" != " + new str (other.value).value)
+        return new bool (nativecode ("thisval != otherval", {"thisval": this.value, "otherval": other.value}))
     }
 
     function @lequal (other){
-        return nativecode (new str (this.value).value + r" <= " + new str (other.value).value)
+        return new bool (nativecode (new str (this.value).value + r$ <= $ + new str (other.value).value))
     }
 
     function @lesst (other){
-        return nativecode (new str (this.value).value + r" < " + new str (other.value).value)
+        return new bool (nativecode ("thisval < otherval", {"thisval": this.value, "otherval": other.value}))
     }
 
     function @greatert (other){
-        return nativecode (new str (this.value).value + r" > " + new str (other.value).value)
+        return new bool (nativecode (new str (this.value).value + r$ > $ + new str (other.value).value))
     }
 
     function @gequal (other){
-        return nativecode (new str (this.value).value + r" <= " + new str (other.value).value)
+        return new bool (nativecode (new str (this.value).value + r$ <= $ + new str (other.value).value))
     }
 
     function @addition (other){
         if (&other == int){
-            set kwargs to {}
-            kwargs.set ("thisval", this.value)
-            kwargs.set ("otherval", other.value)
-            return new int (nativecode ("thisval + otherval", kwargs))
+            return new int (nativecode ("thisval + otherval", {"thisval": this.value, "otherval": other.value}))
         }
-        return new float (nativecode (new str (this.value).value + r" + " + new str (other).value))
+        return new float (nativecode ("thisval + otherval", {"thisval": this.value, "otherval": other.value}))
     }
 
     function @division (other){
-        return new float (nativecode (new str (this.value).value + r" / " + new str (other).value))
+        return new float (nativecode (new str (this.value).value + r$ / $ + new str (other).value))
     }
 
     function @subtraction (other){
         if (&other == int){
-            return new int (nativecode (new str (this.value).value + r" - " + new str (other).value))
+            return new int (nativecode (new str (this.value).value + r$ - $ + new str (other).value))
         }
-        return new float (nativecode (new str (this.value).value + r" - " + new str (other).value))
+        return new float (nativecode (new str (this.value).value + r$ - $ + new str (other).value))
     }
 
     function @multiplication (other){
         if (&other == int){
-            return new int (nativecode (new str (this.value).value + r" * " + new str (other).value))
+            return new int (nativecode (new str (this.value).value + r$ * $ + new str (other).value))
         }
-        return new float (nativecode (new str (this.value).value + r" * " + new str (other).value))
+        return new float (nativecode (new str (this.value).value + r$ * $ + new str (other).value))
+    }
+
+    function @repr (){
+        return new str (this.value)
     }
 }
 
 class float (valuedObject) {
     constructor float (value){
-        set this.value to nativecode (r"float(" + packvalue (value) + r")")
+        set this.value to nativecode (r$float($ + packvalue (value) + r$)$)
     }
 
     function @addition (other){
-        return new float (nativecode (new str (this.value).value + r" + " + other.value))
+        return new float (nativecode (new str (this.value).value + r$ + $ + other.value))
     }
 
     function @division (other){
-        return new float (nativecode (new str (this.value).value + r" / " + other.value))
+        return new float (nativecode (new str (this.value).value + r$ / $ + other.value))
     }
 
     function @subtraction (other){
-        return new float (nativecode (new str (this.value).value + r" - " + other.value))
+        return new float (nativecode (new str (this.value).value + r$ - $ + other.value))
     }
 
     function @multiplication (other){
-        return new float (nativecode (new str (this.value).value + r" * " + other.value))
+        return new float (nativecode (new str (this.value).value + r$ * $ + other.value))
+    }
+
+    function @repr (){
+        return new str (this.value)
     }
 }
 
@@ -166,24 +175,36 @@ class list (dict) {
         set i to 0
         while (i < this.len ()){
             if (i == this.len () - 1){
-                set r to r + new str (this.at (i))
+                set r to r + (this.at (i)).@repr ()
             }
             else {
-                set r to r + new str (this.at (i)) + ", "
+                set r to r + this.at (i).@repr () + ", "
             }
             set i to i + 1
         }
         set r to r + "]"
         return r
     }
+
+    function @repr (){
+        return new str (this)
+    }
 }
 
-function range (start, end, jump){
+function range (start = 0, end, jump = 1){
     // NOTE: implement this
+    // also overload
+    set r to []
+    set i to start
+    while (i < end){
+        r.add (i)
+        set i to i + jump
+    }
+    return r
 }
 
 function show (data = "", end = "\n"){
-    nativecode ("print(data, end=str(endchar))", {"data": data, "endchar": end})
+    nativecode ("print(data, end=str(endchar))", {"data": new str (data), "endchar": end})
 }
 
 function input (prompt = ""){
