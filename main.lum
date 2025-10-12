@@ -3,4 +3,5 @@ import lib:math.lum as mth
 
 show (mth.pi)
 show (mth.fibonacci (3))
+show ("hi")
 throw TypeError ("hi")
