@@ -192,8 +192,7 @@ class list (dict) {
 }
 
 function range (start = 0, end, jump = 1){
-    // NOTE: implement this
-    // also overload
+    // NOTE: also implement overload
     set r to []
     set i to start
     while (i < end){

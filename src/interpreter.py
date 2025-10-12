@@ -33,8 +33,6 @@ def log(*texts):
 """
 TODO:
 OPTIMIZE
-. obj (*args) -> eval(obj).call(eval(args))
-
 . everything stored in self.env
 
 . test create_interpreter() mechanics for less space complexity (instead of passing self.glob)
@@ -609,7 +607,8 @@ class LumaInterpreter:
             if part in self.LOGICAL_OPERATORS:
                 r.append(part)
             else:
-                r.append(self.evaluate(part))
+                epart = self.evaluate(part)
+                r.append(epart)
         return r
 
     def parse_args(self, input_string: str):
@@ -679,7 +678,7 @@ class LumaInterpreter:
 
         return not in_quotes and not stack
 
-    def evaluatecond(self, cond: tuple["LumaInterpreter.InstancedLumaObject", str, "LumaInterpreter.InstancedLumaObject"]):
+    def evaluatecond(self, cond: tuple[EvaluatedType, str, EvaluatedType]):
         if not cond:
             return False
         i = 0
@@ -717,7 +716,7 @@ class LumaInterpreter:
         return self.evaluate(f"new bool ({int(result)})")
 
     @staticmethod
-    def eval_single_condition(parts: tuple["LumaInterpreter.InstancedLumaObject", str, "LumaInterpreter.InstancedLumaObject"]):
+    def eval_single_condition(parts: tuple[EvaluatedType, str, EvaluatedType]):
         left_val, op, right_val = parts
         if op == " == ":
             return left_val == right_val
@@ -849,7 +848,29 @@ class LumaInterpreter:
 
         expr = expr.strip()
         scope = self.localparams[-1] if self.localparams else {}
-        if expr in scope.keys():
+        if expr.startswith("(") and expr.endswith(")") and LumaInterpreter.termisclosed(expr[1:-1]):
+            return self.evaluate(expr[1:-1])
+        elif self.is_condition_expression(expr):
+            processedcond = self.processcondition(expr)
+            r = self.evaluatecond(processedcond)
+            return r
+        elif expr[0] == "&":
+            data: LumaInterpreter.LumaClass = self.evaluate(expr[1:])
+            if type(data) is LumaInterpreter.LumaClass:
+                return self.classes["classType"]
+            return (
+                self.classes[data.typename]
+                if LumaInterpreter.get_oldest_parent(type(data))
+                is LumaInterpreter.LumaClass
+                else self.classes["raw"]
+            )
+        elif LumaInterpreter.is_obj_call(expr):
+            splitted = LumaInterpreter.smrtsplt(expr, ' ')
+            prefix = ' '.join(splitted[0:-1])
+            obj: LumaInterpreter.InstancedLumaObject = self.evaluate(prefix)
+            args = self.extractargs(expr, prefix)
+            return obj.call(args)
+        elif expr in scope.keys():
             if (
                 type(scope[expr]) is LumaInterpreter.InstancedLumaObject
                 and not doyouwantit
@@ -861,15 +882,6 @@ class LumaInterpreter:
             else:
                 r = scope[expr]
             return r
-        elif firstword in scope.keys():
-            args = self.extractargs(expr.strip(), firstword)
-            tmp: LumaInterpreter.InstancedLumaObject = scope[firstword].call(args)
-            r = copy.copy(tmp)
-            if type(tmp) is LumaInterpreter.InstancedLumaObject and not doyouwantit:
-                r.vars = LumaInterpreter.copy_dict(tmp.vars)
-                if hasattr(r, "value"):
-                    r.value = LumaInterpreter.copy_dict(tmp.value)
-            return r
         if firstword == "this":
             LumaInterpreter.throw(
                 self.classes["TypeError"],
@@ -878,10 +890,6 @@ class LumaInterpreter:
                 "idk",
                 self.filename,
             )
-        if self.is_condition_expression(expr):
-            processedcond = self.processcondition(expr)
-            r = self.evaluatecond(processedcond)
-            return r
         for op in self.OPERATORS:
             op_token = f" {op} "
             if op_token not in expr:
@@ -943,16 +951,6 @@ class LumaInterpreter:
             return self.functions[expr]
         elif expr in self.classes.keys():
             return self.classes[expr]
-        elif expr[0] == "&":
-            data: LumaInterpreter.LumaClass = self.evaluate(expr[1:])
-            if type(data) is LumaInterpreter.LumaClass:
-                return self.classes["classType"]
-            return (
-                self.classes[data.typename]
-                if LumaInterpreter.get_oldest_parent(type(data))
-                is LumaInterpreter.LumaClass
-                else self.classes["raw"]
-            )
         elif expr.startswith('r$') and expr.endswith('$'):
             return self.realvalue(expr[2:-1])
         elif expr.startswith('rd$') and expr.endswith('$'):
@@ -975,15 +973,8 @@ class LumaInterpreter:
                                 instance.vars[propertyname].value
                             )
                     return r
-                elif LumaInterpreter.getfirstword(propertyname) in instance.functions.keys():
-                    args = self.extractargs(expr, f"{instancename}.{LumaInterpreter.getfirstword(propertyname)}")
-                    tmp = instance.callmethod(LumaInterpreter.getfirstword(propertyname), args)
-                    r = copy.copy(tmp)
-                    if type(tmp) is LumaInterpreter.InstancedLumaObject:
-                        r.vars = LumaInterpreter.copy_dict(tmp.vars)
-                        if hasattr(r, "value"):
-                            r.value = LumaInterpreter.copy_dict(tmp.value)
-                    return r
+                elif propertyname in instance.functions.keys():
+                    return instance.tie(propertyname)
                 elif propertyname in instance.classes.keys():
                     args = self.extractargs(expr.strip(), firstword)
                     instance = instance.classes[propertyname].instance(
@@ -1004,8 +995,8 @@ class LumaInterpreter:
                     )
             else:
                 LumaInterpreter.throw(
-                    self.classes["NameError"],
-                    f"undefined variable '{instancename}'",
+                    self.classes["TypeError"],
+                    f"NoneType object has no attributes",
                     "idk",
                     expr,
                     self.filename,
@@ -1020,29 +1011,6 @@ class LumaInterpreter:
             if hasattr(r, "value"):
                 r.value = LumaInterpreter.copy_dict(instance.value)
             return r
-        elif firstword in self.vars.keys():
-            args = self.extractargs(expr.strip(), firstword)
-            var = self.vars[firstword]
-            if type(var) is LumaInterpreter.InstancedLumaObject:
-                tmp = var.call(args)
-                r = copy.copy(tmp)
-                if type(tmp) is LumaInterpreter.InstancedLumaObject:
-                    r.vars = LumaInterpreter.copy_dict(tmp.vars)
-                    if hasattr(r, "value"):
-                        r.value = LumaInterpreter.copy_dict(tmp.value)
-                return r
-            return
-        elif firstword in self.functions.keys():
-            args = self.extractargs(expr.strip(), firstword)
-            tmp = self.functions[firstword].run(args)
-            r = copy.copy(tmp)
-            if type(tmp) is LumaInterpreter.InstancedLumaObject:
-                r.vars = LumaInterpreter.copy_dict(tmp.vars)
-                if hasattr(r, "value"):
-                    r.value = LumaInterpreter.copy_dict(tmp.value)
-            return r
-        elif expr.startswith("(") and expr.endswith(")"):
-            return self.evaluate(expr[1:-1])
         else:
             LumaInterpreter.throw(
                 self.classes["NameError"],
@@ -1063,7 +1031,7 @@ class LumaInterpreter:
             self.classes: dict[str, LumaInterpreter.LumaClass] = {}
 
             def stringify(this=None):
-                return f"<{self.actualname} object from luma>"
+                return f"<{self.actualname} object>"
 
             self.functions["@stringify"] = LumaInterpreter.LumaFunction(
                 "@stringify", [], stringify, self.glob
@@ -1080,8 +1048,8 @@ class LumaInterpreter:
         def __lbool__(self):
             return False
 
-        def __str__(self):
-            return f"<class {self.typename}>"
+        def __repr__(self):
+            return f"<class {self.typename} from luma>"
 
         def call(self, args):
             self.instance(
@@ -1152,6 +1120,7 @@ class LumaInterpreter:
             args: list,
             body: str | Callable[[Any], Any],
             glob: dict[str, Any],
+            wrapper: bool = False,
         ):
             self.typename = "functionType"
             self.actualname = name
@@ -1192,7 +1161,10 @@ class LumaInterpreter:
             return r
 
         def call(self, args):
-            self.run(args)
+            return self.run(args)
+
+        def __repr__(self):
+            return f"<FunctionType object named {self.actualname}>"
 
         def bind_values(self, args):
             result = {}
@@ -1418,8 +1390,15 @@ class LumaInterpreter:
             raise TypeError("Could not find an active interpreter.")
 
         def call(self, args):
-            r = self.functions["@call"].run([], self)
+            r = self.functions["@call"].run(args, self)
             return r
+
+        def tie(self, method: str):
+            def wrapper(*args):
+                return self.functions[method].run(args, self)
+            return LumaInterpreter.LumaFunction(
+                method, self.functions[method].args, wrapper, self.glob
+            )
 
         def instance(self, args: list, name):
             interpreter: LumaInterpreter | None = (

@@ -1,1 +1,1 @@
-show (range (0, 10))
+show (range (0, 10, 2))
