@@ -33,8 +33,6 @@ def log(*texts):
 """
 TODO:
 OPTIMIZE
-. remove raw datatype (LumaStr in PY_IMPL_CLASSES)
-
 . handling errors (interpreter AND luma)
 
 . python objects access from luma # for libraries like socket ## i think... i have already?
