@@ -211,10 +211,6 @@ function input (prompt = ""){
     return inpt
 }
 
-function throw (error){
-
-}
-
 set @file to new str (nativecode ("filename"))
 set true to new bool (1)
 set false to new bool (0)
