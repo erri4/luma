@@ -78,6 +78,7 @@ class LumaInterpreter:
     LOGICAL_OP_RE = re.compile(
         r"\s*(" + "|".join(re.escape(op) for op in LOGICAL_OPERATORS) + r")\s*"
     )
+    tb: list[str] = []
 
     def __new__(cls):
         if cls._instance is None:
@@ -97,17 +98,12 @@ class LumaInterpreter:
             r = eval(str(pytext), globs | data)
             return r
 
-        def packvalue(string):
-            r = json.dumps(str(string))
-            return r
-
         self.env["nativecode"] = self.LumaFunction(
             "nativecode",
             [{"name": "pytext"}, {"name": "kwargs", "default": None}],
             nativecode,
-        )
-        self.env["packvalue"] = self.LumaFunction(
-            "packvalue", [{"name": "string"}], packvalue
+            0,
+            "INTERNAL",
         )
 
         module = self.LumaClass("module")
@@ -123,28 +119,32 @@ class LumaInterpreter:
 
         def constructor(msg, this=None):
             setattr(this, 'msg', msg)
+            setattr(this, 'tb', LumaInterpreter().traceback())
 
         BaseError.functions["constructor"] = LumaInterpreter.LumaFunction(
-            "constructor", [{"name": "msg", "default": self.env['str'].instance([""])}], constructor
+            "constructor", [{"name": "msg", "default": self.env['str'].instance([""])}], constructor, 0, "INTERNAL",
         )
         def trigger(this=None):
-            raise LumaInterpreter.LumaException(this, [getattr(this, 'msg')])
+            raise LumaInterpreter.LumaException(this)
 
         BaseError.functions["trigger"] = LumaInterpreter.LumaFunction(
-            "trigger", [], trigger
+            "trigger", [], trigger, 0, "INTERNAL",
         )
         def stringify(this=None):
             return getattr(this, 'msg')
 
         BaseError.functions["@stringify"] = LumaInterpreter.LumaFunction(
-            "@stringify", [], stringify
+            "@stringify", [], stringify, 0, "INTERNAL",
         )
         self.env["BaseError"] = BaseError
 
         self.filename = filename
         self.scopes: list[str] = [program]
         self.runimport(":builtins.lum", None)
-        self.runsubprogram(program, infunc=False)
+        try:
+            self.runsubprogram(program, infunc=False, file=self.filename)
+        except LumaInterpreter.LumaException as e:
+            print(e)
 
     @staticmethod
     def getfirstword(line: str):
@@ -158,6 +158,9 @@ class LumaInterpreter:
     @staticmethod
     def reverse_list(r):
         return r[::-1] if isinstance(r, list) else []
+    
+    def traceback(self):
+        return self.tb
 
     def realvalue(self, expr: str, includelist=False):
         if not includelist:
@@ -246,7 +249,7 @@ class LumaInterpreter:
             with open(module) as imported:
                 subprogram = imported.read()
                 if name is None:
-                    self.runsubprogram(subprogram, infunc=False)
+                    self.runsubprogram(subprogram, infunc=False, file=module)
                 else:
                     body = "class module {\n    constructor module (){\n        \n    }\n\n"
                     for line in subprogram.splitlines():
@@ -258,9 +261,6 @@ class LumaInterpreter:
             LumaInterpreter.throw(
                 self.env["ModuleNotFoundError"],
                 f"No module named '{module}'",
-                "idk",
-                f"import {module}" + f" as {name}" if name else "",
-                self.filename,
             )
 
     def runext(self, ext: str):
@@ -286,7 +286,7 @@ class LumaInterpreter:
             for name in module.LumaExtension:
                 self.env[name] = self.parse_py(module.LumaExtension[name])
         else:
-            LumaInterpreter.throw(self.env['ExtensionError'], f"The extension at {ext} is not a valid extension: LumaExtension dict is not present", 'idk', f'extend {ext}', self.filename)
+            LumaInterpreter.throw(self.env['ExtensionError'], f"The extension at {ext} is not a valid extension: LumaExtension dict is not present")
 
     def parse_py(self, token):
         if type(token) is dict:
@@ -306,11 +306,11 @@ class LumaInterpreter:
 
 
     def runsubprogram(
-        self, subprogram: str, Object=None, infunc: bool = True, realfunc: bool = False
+        self, subprogram: str, Object=None, infunc: bool = True, realfunc: bool = False, line1: int = 1, file: str = ""
     ):
+        if file == '': raise
         if Object is None:
             Object = self
-        linen = 1
         subprogram = LumaInterpreter.preprocess(subprogram)
         subprogram = subprogram.splitlines()
         if infunc:
@@ -320,8 +320,9 @@ class LumaInterpreter:
         self.scopes.append(subprogram)
         res = None
         for subline in subprogram.splitlines():
+            self.tb.append([line1, subline, file])
             try:
-                res = self.process(subline, linen, Object)
+                res = self.process(subline, line1, Object, file)
             except LumaInterpreter.SubProgramExitCode as e:
                 if e.code == "return":
                     self.scopes.pop()
@@ -335,7 +336,8 @@ class LumaInterpreter:
                     raise LumaInterpreter.SubProgramExitCode("return", res)
                 else:
                     break
-            linen += 1
+            line1 += 1
+            self.tb.pop()
         self.scopes.pop()
         return res
 
@@ -344,6 +346,7 @@ class LumaInterpreter:
         line: str,
         linenum: int,
         Object: "LumaInterpreter | LumaInterpreter.InstancedLumaObject | None" = None,
+        file: str = '',
     ):
         line = line.replace(r"\n", "\n")
         if Object is None or type(Object) is LumaInterpreter:
@@ -368,7 +371,10 @@ class LumaInterpreter:
                         break
                 stop += len(linee) + 1
             body = a[a.find("){") + 3 : stop].strip()
-            functions[func_name] = self.LumaFunction(func_name, args, body)
+            functions[func_name] = self.LumaFunction(func_name, args, body, linenum, file)
+        elif firstword == "throw":
+            exc: LumaInterpreter.InstancedLumaObject = self.evaluate(line[6:])
+            exc.callmethod('trigger', [])
         elif firstword == "class":
             class_name = line[6 : line.find(" {")]
             a = program[progfind(f"class {class_name}" + " {") + len(class_name) + 2 :]
@@ -394,7 +400,7 @@ class LumaInterpreter:
                 classes[class_name].parents = classes[parent].parents.copy()
                 classes[class_name].parents.append(parent)
                 classes[class_name].typename = class_name
-            self.runsubprogram(body, classes[class_name])
+            self.runsubprogram(body, classes[class_name], line1=linenum, file=file)
         elif firstword == "constructor":
             class_name = line[12 : line.find(" (")]
             args = self.parse_args(line[line.find(" (") + 2 : line.find(")")])
@@ -410,6 +416,8 @@ class LumaInterpreter:
                 "constructor",
                 args,
                 body,
+                linenum,
+                file
             )
         elif firstword == "set":
             varname = line[4 : line.find("to") - 1]
@@ -428,10 +436,7 @@ class LumaInterpreter:
                 if varname == "this":
                     LumaInterpreter.throw(
                         self.env["TypeError"],
-                        "cannot use this outside class method call",
-                        linenum,
-                        line,
-                        self.filename,
+                        "cannot use 'this' keyword outside class method call",
                     )
                 varis[varname] = value
         elif firstword == "import":
@@ -470,7 +475,7 @@ class LumaInterpreter:
                             break
                     stop += len(linee) + 1
                 bd = a[a.find("){") + 3 : stop].strip()
-                excs.append(exc)
+                excs.append([exc, linenu])
 
                 bodys[exc[0]] = bd
                 linenu += len(bd.splitlines()) + 2
@@ -482,23 +487,23 @@ class LumaInterpreter:
                 except IndexError:
                     break
             try:
-                self.runsubprogram(body)
+                self.runsubprogram(body, line1=linenum + 1, file=file)
             except LumaInterpreter.LumaException as e:
                 catched = False
                 for exc in excs:
-                    if exc[0] == e.exc.typename:
+                    if exc[0][0] == e.exc.typename:
                         try:
-                            self.env[exc[1]] = e.exc
+                            self.env[exc[0][1]] = e.exc
                         except IndexError: pass
-                        self.runsubprogram(bodys[exc[0]])
+                        self.runsubprogram(bodys[exc[0][0]], line1=exc[1] + 1, file=file)
                         catched = True
                 if not catched:
                     for exc in excs:
-                        if exc[0] == "AnyException":
+                        if exc[0][0] == "AnyException":
                             try:
-                                self.env[exc[1]] = e.exc
+                                self.env[exc[0][1]] = e.exc
                             except IndexError: pass
-                            self.runsubprogram(bodys[exc[0]])
+                            self.runsubprogram(bodys[exc[0][0]], line1=exc[1] + 1, file=file)
                             catched = True
                 if not catched:
                     raise e from None
@@ -611,17 +616,14 @@ class LumaInterpreter:
         ):
             pass
         else:
-            self.evaluate(line)
+            self.evaluate(line, line=linenum)
 
     @staticmethod
     def throw(
         exc: "LumaInterpreter.LumaClass",
         msg: "str | LumaInterpreter.InstancedLumaObject",
-        linenum: "int | LumaInterpreter.InstancedLumaObject",
-        line: "str | LumaInterpreter.InstancedLumaObject",
-        file: "str | LumaInterpreter.InstancedLumaObject",
     ) -> None:
-        exc.instance([f"\n{msg}\n    at line {linenum} in {line}\n    at file {file}"]).callmethod('trigger', [])
+        exc.instance([msg]).callmethod('trigger', [])
 
     def processcondition(self, condition: str):
         cond = self.splitbyop(condition)
@@ -883,7 +885,7 @@ class LumaInterpreter:
         return out
 
     def evaluate(
-        self, expr: str, evalforwhat: str | None = None, doyouwantit: bool = False
+        self, expr: str, evalforwhat: str | None = None, doyouwantit: bool = False, line: int = 0
     ):
         if not evalforwhat:
             evalforwhat = self.generaterandomvarname()
@@ -920,9 +922,6 @@ class LumaInterpreter:
                         LumaInterpreter.throw(
                             self.env["TypeError"],
                             f"unsupported operator: unable to perform operator {op} on types '{LumaInterpreter.namourtype(self.evaluate(f'{terms[0]}'))}' and '{LumaInterpreter.namourtype(self.evaluate(f'{op_token.join(terms[1:])}'))}'",
-                            "idk",
-                            expr,
-                            self.filename,
                         )
                 try:
                     return self.REAL_OPERATORS[op](term0, self.evaluate(terms[-1]))
@@ -930,9 +929,6 @@ class LumaInterpreter:
                     LumaInterpreter.throw(
                         self.env["TypeError"],
                         f"unsupported operator: unable to perform operator {op} on types '{LumaInterpreter.namourtype(self.evaluate(f'{terms[0]}'))}' and '{LumaInterpreter.namourtype(self.evaluate(f'{op_token.join(terms[1:])}'))}'",
-                        "idk",
-                        expr,
-                        self.filename,
                     )
         
         if expr[0] == "&":
@@ -965,10 +961,7 @@ class LumaInterpreter:
         if firstword == "this":
             LumaInterpreter.throw(
                 self.env["TypeError"],
-                "cannot use 'this' outside class method call",
-                "idk",
-                "idk",
-                self.filename,
+                "cannot use 'this' keyword outside class method call",
             )
         dotparts = LumaInterpreter.smrtsplt(expr, ".")
         if self.isnumber(expr):
@@ -1031,17 +1024,11 @@ class LumaInterpreter:
                     LumaInterpreter.throw(
                         self.env["TypeError"],
                         f"{instancename} (type {self.evaluate(f'&{instancename}')}) has no attribute '{propertyname}'",
-                        "idk",
-                        expr,
-                        self.filename,
                     )
             else:
                 LumaInterpreter.throw(
                     self.env["TypeError"],
-                    "NoneType object has no attributes",
-                    "idk",
-                    expr,
-                    self.filename,
+                    "NullType object has no attributes",
                 )
         elif firstword == "new":
             firstword = LumaInterpreter.getfirstword(expr[4:])
@@ -1053,16 +1040,10 @@ class LumaInterpreter:
             if hasattr(r, "value"):
                 r.value = LumaInterpreter.copy_dict(instance.value)
             return r
-        elif firstword == "throw":
-            exc: LumaInterpreter.InstancedLumaObject = self.evaluate(expr[6:])
-            exc.callmethod('trigger', [])
         else:
             LumaInterpreter.throw(
                 self.env["NameError"],
                 f"undefined variable or function '{firstword}'",
-                "idk",
-                expr,
-                self.filename,
             )
 
     class LumaClass:
@@ -1080,6 +1061,8 @@ class LumaInterpreter:
                 "@stringify",
                 [],
                 stringify,
+                0,
+                "INTERNAL",
             )
 
             def repre(this=None):
@@ -1089,6 +1072,8 @@ class LumaInterpreter:
                 "@repr",
                 [],
                 repre,
+                0,
+                "INTERNAL",
             )
             self.vars: dict[str, EvaluatedType] = {}
 
@@ -1150,11 +1135,15 @@ class LumaInterpreter:
             name: str,
             args: list[dict[str, str | EvaluatedType]],
             body: str | Callable[[Any], Any],
+            line: int,
+            file: str,
         ):
             self.typename = "functionType"
             self.actualname = name
             self.args = args
             self.body = body
+            self.line = line
+            self.file = file
 
         def run(
             self, args: list, Object=None, varsholder=None
@@ -1170,7 +1159,7 @@ class LumaInterpreter:
             interpreter.localparams.append(argdict)
             orig_vars = set(varsholder.keys())
             if type(self.body) is str:
-                r = interpreter.runsubprogram(self.body, realfunc=True)
+                r = interpreter.runsubprogram(self.body, realfunc=True, line1=self.line + 1, file=self.file)
             elif type(self.body) is FunctionType:
                 rargs = []
                 for key in argdict:
@@ -1204,18 +1193,12 @@ class LumaInterpreter:
                     LumaInterpreter.throw(
                         LumaInterpreter().env["TypeError"],
                         f"function '{self.actualname}' expected {len(self.args)} arguments but got {len(args)}",
-                        "idk",
-                        "idk bro",
-                        LumaInterpreter().filename,
                     )
 
             if value_index < len(args):
                 LumaInterpreter.throw(
                     LumaInterpreter().env["TypeError"],
                     f"function '{self.actualname}' expected {len(self.args)} arguments but got {len(args)}",
-                    "idk",
-                    "idk bro",
-                    LumaInterpreter().filename,
                 )
 
             return result
@@ -1230,7 +1213,7 @@ class LumaInterpreter:
                 this.value = value.copy()
 
             self.functions["constructor"] = LumaInterpreter.LumaFunction(
-                "constructor", [{"name": "value"}], constructor
+                "constructor", [{"name": "value"}], constructor, 0, "INTERNAL",
             )
 
             def at(
@@ -1239,7 +1222,7 @@ class LumaInterpreter:
                 return this.value[pos]
 
             self.functions["at"] = LumaInterpreter.LumaFunction(
-                "at", [{"name": "pos"}], at
+                "at", [{"name": "pos"}], at, 0, "INTERNAL",
             )
 
             def dctset(
@@ -1248,7 +1231,7 @@ class LumaInterpreter:
                 this.value[pos] = value
 
             self.functions["set"] = LumaInterpreter.LumaFunction(
-                "set", [{"name": "pos"}, {"name": "value"}], dctset
+                "set", [{"name": "pos"}, {"name": "value"}], dctset, 0, "INTERNAL",
             )
 
             def stringify(
@@ -1274,6 +1257,8 @@ class LumaInterpreter:
                 "@stringify",
                 [],
                 stringify,
+                0,
+                "INTERNAL",
             )
 
             def repre(
@@ -1299,6 +1284,8 @@ class LumaInterpreter:
                 "@repr",
                 [],
                 repre,
+                0,
+                "INTERNAL",
             )
 
             def length(
@@ -1312,6 +1299,8 @@ class LumaInterpreter:
                 "len",
                 [],
                 length,
+                0,
+                "INTERNAL",
             )
 
             def lbool(
@@ -1323,6 +1312,8 @@ class LumaInterpreter:
                 "@bool",
                 [],
                 lbool,
+                0,
+                "INTERNAL",
             )
 
     class LumaClassBool(LumaClass):
@@ -1342,7 +1333,7 @@ class LumaInterpreter:
                     this.value = bool(value)
 
             self.functions["constructor"] = LumaInterpreter.LumaFunction(
-                "constructor", [{"name": "value"}], constructor
+                "constructor", [{"name": "value"}], constructor, 0, "INTERNAL",
             )
 
             def stringify(
@@ -1355,6 +1346,8 @@ class LumaInterpreter:
                 "@stringify",
                 [],
                 stringify,
+                0,
+                "INTERNAL",
             )
 
             def selfbool(
@@ -1366,6 +1359,8 @@ class LumaInterpreter:
                 "@bool",
                 [],
                 selfbool,
+                0,
+                "INTERNAL",
             )
 
             def repre(
@@ -1378,6 +1373,8 @@ class LumaInterpreter:
                 "@repr",
                 [],
                 repre,
+                0,
+                "INTERNAL",
             )
 
         @staticmethod
@@ -1400,7 +1397,7 @@ class LumaInterpreter:
                 this.value = str(value)
 
             self.functions["constructor"] = LumaInterpreter.LumaFunction(
-                "constructor", [{"name": "value"}], constructor
+                "constructor", [{"name": "value"}], constructor, 0, "INTERNAL",
             )
 
             def add(other, this: "LumaInterpreter.InstancedLumaObject | None" = None):
@@ -1408,7 +1405,7 @@ class LumaInterpreter:
                 return interpreter.env["str"].instance([this.value + str(other)])
 
             self.functions["@addition"] = LumaInterpreter.LumaFunction(
-                "@addition", [{"name": "other"}], add
+                "@addition", [{"name": "other"}], add, 0, "INTERNAL",
             )
 
             def at(
@@ -1429,7 +1426,7 @@ class LumaInterpreter:
                     )
 
             self.functions["at"] = LumaInterpreter.LumaFunction(
-                "at", [{"name": "pos"}], at
+                "at", [{"name": "pos"}], at, 0, "INTERNAL",
             )
 
             def stringify(
@@ -1441,6 +1438,8 @@ class LumaInterpreter:
                 "@stringify",
                 [],
                 stringify,
+                0,
+                "INTERNAL",
             )
 
             def repre(
@@ -1460,6 +1459,8 @@ class LumaInterpreter:
                 "@repr",
                 [],
                 repre,
+                0,
+                "INTERNAL",
             )
 
             def length(this: "LumaInterpreter.InstancedLumaObject | None" = None):
@@ -1469,6 +1470,8 @@ class LumaInterpreter:
                 "len",
                 [],
                 length,
+                0,
+                "INTERNAL",
             )
 
             def lbool(this: "LumaInterpreter.InstancedLumaObject | None" = None):
@@ -1478,6 +1481,8 @@ class LumaInterpreter:
                 "@bool",
                 [],
                 lbool,
+                0,
+                "INTERNAL",
             )
 
     class InstancedLumaObject[ClassName: LiteralString]:
@@ -1510,8 +1515,8 @@ class LumaInterpreter:
                 return
             raise TypeError("Could not find an active interpreter.")
 
-        def call(self, args):
-            r = self.functions["@call"].run(args, self)
+        def call(self, args, line):
+            r = self.functions["@call"].run(args, self, callline=line)
             return r
 
         def tie(self, method: str):
@@ -1550,9 +1555,6 @@ class LumaInterpreter:
                     LumaInterpreter.throw(
                         interpreter.env["TypeError"],
                         f"@stringify must return a string and not {r.typename}",
-                        "idk",
-                        "idk",
-                        interpreter.filename,
                     )
             return r
 
@@ -1622,7 +1624,10 @@ class LumaInterpreter:
             super().__init__()
 
     class LumaException(Exception):
-        def __init__(self, exc: "LumaInterpreter.InstancedLumaObject", args):
+        def __init__(self, exc: "LumaInterpreter.InstancedLumaObject"):
             self.exc = exc
-            self.args = args
-            super().__init__(exc.typename + ": " + ', '.join(map(str, args)))
+            super().__init__('\n'.join([self.display(tb) for tb in getattr(exc, 'tb')]) + "\n\033[1m\033[95m" + exc.typename + "\033[0m: \033[95m" + str(getattr(exc, 'msg')) + "\033[0m")
+
+
+        def display(self, tbline: tuple[int, str, str]):
+            return f'File \033[95m"{tbline[2]}"\033[0m, line \033[95m{tbline[0]}\033[0m\n    \033[31m{tbline[1]}\033[0m'

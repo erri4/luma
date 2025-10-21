@@ -4,7 +4,7 @@ class raw {
     }
 }
 
-class NoneType (raw) {
+class NullType (raw) {
     function @stringify (){
         return "null"
     }
@@ -15,15 +15,11 @@ class NoneType (raw) {
 }
 
 class classType {
-    constructor classType (){
-
-    }
+    
 }
 
 class functionType {
-    constructor functionType (){
-
-    }
+    
 }
 
 class ModuleNotFoundError (BaseError) {
@@ -56,13 +52,13 @@ class valuedObject {
     }
 
     function len (){
-        return new int (nativecode ("len(" + packvalue (this.value) + ")"))
+        return new int (nativecode ("len(thisval)", {"thisval": this.value}))
     }
 }
 
 class int (valuedObject) {
     constructor int (value){
-        set this.value to nativecode ("int(" + packvalue (value) + ")")
+        set this.value to nativecode ("int(val)", {"val": value})
     }
 
     function @bool (){
@@ -129,7 +125,7 @@ class int (valuedObject) {
 
 class float (valuedObject) {
     constructor float (value){
-        set this.value to nativecode ("float(" + packvalue (value) + ")")
+        set this.value to nativecode ("float(val)", {"val": value})
     }
 
     function @addition (other){

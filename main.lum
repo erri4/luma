@@ -1,4 +1,6 @@
-extend :ext.py
-
-show (test)
-func (nativecode ("'hi'"))
+try {
+    throw new TypeError ("hi")
+}
+catch (TypeError as e){
+    throw new TypeError ("hi")
+}
