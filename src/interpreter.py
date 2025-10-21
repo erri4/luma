@@ -35,8 +35,6 @@ def log(*texts):
 """
 TODO:
 OPTIMIZE
-. importing py
-
 . handling errors (interpreter)
 
 . python objects access from luma # for libraries like socket ## i think... i have already? ### yeah i do (remove the line in next commit)
