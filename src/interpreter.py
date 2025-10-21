@@ -34,9 +34,7 @@ def log(*texts):
 """
 TODO:
 OPTIMIZE
-. try catch "as"
-
-. handling errors (interpreter AND luma)
+. handling errors (interpreter)
 
 . python objects access from luma # for libraries like socket ## i think... i have already?
 
@@ -116,15 +114,6 @@ class LumaInterpreter:
 
         module = self.LumaClass("module")
         self.env["module"] = module
-        BaseError = self.LumaClass("BaseError")
-
-        def constructor(msg, this=None):
-            raise LumaInterpreter.LumaException(["BaseError", msg])
-
-        BaseError.functions["constructor"] = LumaInterpreter.LumaFunction(
-            "constructor", [{"name": "msg"}], constructor
-        )
-        self.env["BaseError"] = BaseError
 
         dictcls = self.LumaClassDict("dict")
         self.env["dict"] = dictcls
@@ -132,6 +121,27 @@ class LumaInterpreter:
         self.env["bool"] = boolcls
         strcls = self.LumaClassStr("str")
         self.env["str"] = strcls
+        BaseError = self.LumaClass("BaseError")
+
+        def constructor(msg, this=None):
+            setattr(this, 'msg', msg)
+
+        BaseError.functions["constructor"] = LumaInterpreter.LumaFunction(
+            "constructor", [{"name": "msg", "default": self.env['str'].instance([""])}], constructor
+        )
+        def trigger(this=None):
+            raise LumaInterpreter.LumaException(this, [getattr(this, 'msg')])
+
+        BaseError.functions["trigger"] = LumaInterpreter.LumaFunction(
+            "trigger", [], trigger
+        )
+        def stringify(this=None):
+            return getattr(this, 'msg')
+
+        BaseError.functions["@stringify"] = LumaInterpreter.LumaFunction(
+            "@stringify", [], stringify
+        )
+        self.env["BaseError"] = BaseError
 
         self.filename = filename
         self.scopes: list[str] = [program]
@@ -344,18 +354,6 @@ class LumaInterpreter:
                 classes[class_name].parents = classes[parent].parents.copy()
                 classes[class_name].parents.append(parent)
                 classes[class_name].typename = class_name
-                if "BaseError" in classes[class_name].parents:
-
-                    def constructor(msg, this=None):
-                        raise LumaInterpreter.LumaException([class_name, msg])
-
-                    classes[class_name].functions["constructor"] = (
-                        LumaInterpreter.LumaFunction(
-                            "constructor",
-                            [{"name": "msg"}],
-                            constructor,
-                        )
-                    )
             self.runsubprogram(body, classes[class_name])
         elif firstword == "constructor":
             class_name = line[12 : line.find(" (")]
@@ -420,7 +418,7 @@ class LumaInterpreter:
             bodys = {}
             excs = []
             while subline.startswith("catch"):
-                exc = subline[7 : subline.find(")")]
+                exc = subline[7 : subline.find(")")].split(' as ')
                 a = "\n".join(program.splitlines()[linenu - 1 :])
                 stop = len(a[: a.find("){") + 3])
                 for linee in a[a.find("){") + 3 :].splitlines():
@@ -431,7 +429,7 @@ class LumaInterpreter:
                 bd = a[a.find("){") + 3 : stop].strip()
                 excs.append(exc)
 
-                bodys[exc] = bd
+                bodys[exc[0]] = bd
                 linenu += len(bd.splitlines()) + 2
 
                 try:
@@ -445,13 +443,19 @@ class LumaInterpreter:
             except LumaInterpreter.LumaException as e:
                 catched = False
                 for exc in excs:
-                    if exc == e.exc_t:
-                        self.runsubprogram(bodys[exc])
+                    if exc[0] == e.exc.typename:
+                        try:
+                            self.env[exc[1]] = e.exc
+                        except IndexError: pass
+                        self.runsubprogram(bodys[exc[0]])
                         catched = True
                 if not catched:
                     for exc in excs:
-                        if exc == "AnyException":
-                            self.runsubprogram(bodys[exc])
+                        if exc[0] == "AnyException":
+                            try:
+                                self.env[exc[1]] = e.exc
+                            except IndexError: pass
+                            self.runsubprogram(bodys[exc[0]])
                             catched = True
                 if not catched:
                     raise e from None
@@ -1009,10 +1013,8 @@ class LumaInterpreter:
                 r.value = LumaInterpreter.copy_dict(instance.value)
             return r
         elif firstword == "throw":
-            firstword = LumaInterpreter.getfirstword(expr[6:])
-            args = self.extractargs(expr[6:].strip(), firstword)
-            cls: LumaInterpreter.LumaClass = self.evaluate(firstword)
-            cls.instance(args)
+            exc: LumaInterpreter.InstancedLumaObject = self.evaluate(expr[6:])
+            exc.callmethod('trigger', [])
         else:
             LumaInterpreter.throw(
                 self.env["NameError"],
@@ -1440,11 +1442,11 @@ class LumaInterpreter:
     class InstancedLumaObject[ClassName: LiteralString]:
         def __init__(
             self,
-            varis: dict,
-            functions: dict,
-            classes: dict,
+            varis: dict[EvaluatedType],
+            functions: "dict[str, LumaInterpreter.LumaFunction]",
+            classes: "dict[str, LumaInterpreter.LumaClass]",
             name: ClassName,
-            args: list[Any],
+            args: list[EvaluatedType],
             parents: list[str],
         ):
             self.vars = varis.copy()
@@ -1496,10 +1498,6 @@ class LumaInterpreter:
             interpreter.env[name] = self
             self.callmethod("constructor", args)
             del interpreter.env[name]
-            if "BaseError" in self.parents:
-                raise LumaInterpreter.LumaException(
-                    [self.typename, args[0] if len(args) > 0 else ""]
-                )
 
         def __str__(self):
             r = self.functions["@stringify"].run([], self)
@@ -1583,7 +1581,7 @@ class LumaInterpreter:
             super().__init__()
 
     class LumaException(Exception):
-        def __init__(self, args):
-            self.exc_t = args[0]
-            self.args = args[1:]
-            super().__init__(args[0] + ": " + str(args[1]))
+        def __init__(self, exc: "LumaInterpreter.InstancedLumaObject", args):
+            self.exc = exc
+            self.args = args
+            super().__init__(exc.typename + ": " + ', '.join(map(str, args)))
