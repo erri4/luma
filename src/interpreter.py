@@ -35,11 +35,10 @@ def log(*texts):
 """
 TODO:
 OPTIMIZE
-. handling errors (interpreter)
+. handling errors (interpreter) # im lazy :(
 
-. python objects access from luma # for libraries like socket ## i think... i have already? ### yeah i do (remove the line in next commit)
-
-ONLY when finished: self.keywords: [...] (not setable)
+ONLY when finished: self.keywords: [...] (not setable) # if it is not clear, whoever is seeing this right now, it will be clear in next commits.
+(im close to finish luma 1.0.0 (!!!!))
 
 . luma extentions (`for loops` and stuff) # this will be just importing py extended
 """
