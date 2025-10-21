@@ -1,11 +1,4 @@
-show ([1, 2, 3])
-set exc to new BaseError ("ji")
-show (exc)
-try {
-    throw exc
-}
-catch (BaseError as e){
-    show ('gotcha')
-    show (e)
-    throw e
-}
+extend :ext.py
+
+show (test)
+func (nativecode ("'hi'"))

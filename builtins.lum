@@ -34,6 +34,10 @@ class NameError (BaseError) {
 
 }
 
+class ExtensionError (BaseError) {
+
+}
+
 class AttributeError (BaseError) {
 
 }
@@ -189,7 +193,7 @@ class list (dict) {
             set r to r + this.at (i).@repr () + ", "
             set i to i + 1
         }
-        set r to r + this.at (i) + "]"
+        set r to r + this.at (i).@repr () + "]"
         return r
     }
 

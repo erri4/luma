@@ -1,5 +1,6 @@
 from types import FunctionType, GeneratorType
 from typing import Any, TypedDict, Callable, Union, LiteralString
+import importlib.util
 import operator
 import sys
 import json
@@ -265,6 +266,48 @@ class LumaInterpreter:
                 self.filename,
             )
 
+    def runext(self, ext: str):
+        if ":" in ext:
+            if getattr(sys, "frozen", False):
+                base_dir = os.path.dirname(sys.executable)
+            else:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+            base_dir = os.path.dirname(base_dir)
+            ext = os.path.join(
+                base_dir, ext[: ext.find(":")], ext[ext.find(":") + 1 :]
+            )
+        module_name = os.path.splitext(os.path.basename(ext))[0]
+        module_dir = os.path.dirname(ext)
+        if module_dir not in sys.path:
+            sys.path.insert(0, module_dir)
+
+        spec = importlib.util.spec_from_file_location(module_name, ext)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        if hasattr(module, "LumaExtension"):
+            for name in module.LumaExtension:
+                self.env[name] = self.parse_py(module.LumaExtension[name])
+        else:
+            LumaInterpreter.throw(self.env['ExtensionError'], f"The extension at {ext} is not a valid extension: LumaExtension dict is not present", 'idk', f'extend {ext}', self.filename)
+
+    def parse_py(self, token):
+        if type(token) is dict:
+            if token.get('type', None) == 'FunctionType':
+                return self.LumaFunction(token['name'], token['args'], token['body'])
+            if token.get('type', None) in self.env.keys():
+                if type(self.env[token.get('type', None)]) is LumaInterpreter.LumaClass or token.get('type', None) in self.PY_IMPL_CLASSES:
+                    return self.env[token['type']].instance([self.parse_py(tk) for tk in token['args']])
+        if type(token).__name__ == "Raw":
+            if type(token.data).__name__ == "DictToDict":
+                newdct = {}
+                for key in token.data.keys:
+                    newdct[self.parse_py(key)] = self.parse_py(token.data[key])
+                return newdct
+            else:
+                return token.data
+
+
     def runsubprogram(
         self, subprogram: str, Object=None, infunc: bool = True, realfunc: bool = False
     ):
@@ -400,6 +443,9 @@ class LumaInterpreter:
             if LumaInterpreter.getfirstword(line[7:]) != line[7:]:
                 name = line[11 + len(LumaInterpreter.getfirstword(line[7:])) :]
             self.runimport(module, name)
+        elif firstword == "extend":
+            module = LumaInterpreter.getfirstword(line[7:])
+            self.runext(module)
         elif firstword == "try":
             a = "\n".join(program.splitlines()[linenum - 1 :])
             stop = len(a[: a.find("{") + 2])
@@ -578,9 +624,7 @@ class LumaInterpreter:
         line: "str | LumaInterpreter.InstancedLumaObject",
         file: "str | LumaInterpreter.InstancedLumaObject",
     ) -> None:
-        exc.functions["constructor"].run(
-            [f"\n{msg}\n    at line {linenum} in {line}\n    at file {file}"]
-        )
+        exc.instance([f"\n{msg}\n    at line {linenum} in {line}\n    at file {file}"]).callmethod('trigger', [])
 
     def processcondition(self, condition: str):
         cond = self.splitbyop(condition)
@@ -1107,7 +1151,7 @@ class LumaInterpreter:
         def __init__(
             self,
             name: str,
-            args: list,
+            args: list[dict[str, str | EvaluatedType]],
             body: str | Callable[[Any], Any],
         ):
             self.typename = "functionType"
