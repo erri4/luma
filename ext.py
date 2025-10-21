@@ -3,7 +3,8 @@ from LumaExtBundle import Raw, DictToDict
 
 def func(arg=""):
     print(arg)
-    print('hiii')
+    print("hiii")
+
 
 # TODO: add class support
 
@@ -19,5 +20,10 @@ LumaExtension = {
             )
         ],
     },
-    "func": {"type": "FunctionType", "name": "func", "body": func, "args": [{"name": "arg"}]},
+    "func": {
+        "type": "FunctionType",
+        "name": "func",
+        "body": func,
+        "args": [{"name": "arg"}],
+    },
 }
