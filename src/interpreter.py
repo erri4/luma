@@ -34,15 +34,15 @@ def log(*texts):
 """
 TODO:
 OPTIMIZE
+. importing py
+
 . handling errors (interpreter)
 
-. python objects access from luma # for libraries like socket ## i think... i have already?
-
-. importing py # this will be extentions
+. python objects access from luma # for libraries like socket ## i think... i have already? ### yeah i do (remove the line in next commit)
 
 ONLY when finished: self.keywords: [...] (not setable)
 
-. luma extentions (`for loops` and stuff)
+. luma extentions (`for loops` and stuff) # this will be just importing py extended
 """
 
 EvaluatedType = Union["LumaInterpreter.InstancedLumaObject", int, str, dict]
