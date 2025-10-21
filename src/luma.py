@@ -3,7 +3,6 @@ import sys
 
 
 # profile: python -m cProfile -s tottime ./src/luma.py ./main.lum
-
 if __name__ == "__main__":
     filename = sys.argv[1]
     interpreter = LumaInterpreter()
@@ -13,7 +12,7 @@ if __name__ == "__main__":
         try:
             with open(f"{filename}") as file:
                 program = file.read()
-            interpreter.run(program, filename, globals())
+            interpreter.run(program, filename)
         except FileNotFoundError:
             print(f"The file {filename} does not exists.")
     else:

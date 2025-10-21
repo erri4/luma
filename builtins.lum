@@ -4,6 +4,16 @@ class raw {
     }
 }
 
+class NoneType (raw) {
+    function @stringify (){
+        return "null"
+    }
+
+    function @repr (){
+        return "null"
+    }
+}
+
 class classType {
     constructor classType (){
 
@@ -104,6 +114,10 @@ class int (valuedObject) {
         return new float (nativecode ("thisval * otherval", {"thisval": this.value, "otherval": other.value}))
     }
 
+    function @stringify (){
+        return this.@repr ()
+    }
+
     function @repr (){
         return new str (this.value)
     }
@@ -130,6 +144,34 @@ class float (valuedObject) {
         return new float (nativecode (new str (this.value).value + " * " + other.value))
     }
 
+    function @equal (other){
+        return new bool (nativecode ("thisval == otherval", {"thisval": this.value, "otherval": other.value}))
+    }
+
+    function @nequal (other){
+        return new bool (nativecode ("thisval != otherval", {"thisval": this.value, "otherval": other.value}))
+    }
+
+    function @lequal (other){
+        return new bool (nativecode ("thisval <= otherval", {"thisval": this.value, "otherval": other.value}))
+    }
+
+    function @lesst (other){
+        return new bool (nativecode ("thisval < otherval", {"thisval": this.value, "otherval": other.value}))
+    }
+
+    function @greatert (other){
+        return new bool (nativecode ("thisval > otherval", {"thisval": this.value, "otherval": other.value}))
+    }
+
+    function @gequal (other){
+        return new bool (nativecode ("thisval >= otherval", {"thisval": this.value, "otherval": other.value}))
+    }
+
+    function @stringify (){
+        return this.@repr ()
+    }
+
     function @repr (){
         return new str (this.value)
     }
@@ -143,16 +185,11 @@ class list (dict) {
     function @stringify (){
         set r to "["
         set i to 0
-        while (i < this.len ()){
-            if (i == this.len () - 1){
-                set r to r + (this.at (i)).@repr ()
-            }
-            else {
-                set r to r + this.at (i).@repr () + ", "
-            }
+        while (i < this.len () - 1){
+            set r to r + this.at (i).@repr () + ", "
             set i to i + 1
         }
-        set r to r + "]"
+        set r to r + this.at (i) + "]"
         return r
     }
 
@@ -181,6 +218,7 @@ function input (prompt = ""){
     return inpt
 }
 
-set @file to new str (nativecode ("filename"))
+/*set @file to new str (nativecode ("filename"))
 set true to new bool (1)
 set false to new bool (0)
+set null to new NoneType ()*/

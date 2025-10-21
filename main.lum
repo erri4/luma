@@ -1,7 +1,1 @@
-show (range (0, 10, 2))
-import lib:math.lum as mth
-
-show (mth.pi)
-show (mth.fibonacci (3))
-show ("hi")
-throw TypeError ("hi")
+show ([1, 2, 3])
