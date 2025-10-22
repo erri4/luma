@@ -1,6 +1,1 @@
-try {
-    throw new TypeError ("hi")
-}
-catch (TypeError as e){
-    throw new TypeError ("hi")
-}
+set null to "gi"

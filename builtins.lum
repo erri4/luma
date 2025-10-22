@@ -4,7 +4,7 @@ class raw {
     }
 }
 
-class NullType (raw) {
+class nullType (raw) {
     function @stringify (){
         return "null"
     }
@@ -22,23 +22,23 @@ class functionType {
     
 }
 
-class ModuleNotFoundError (BaseError) {
+class moduleNotFoundError (baseError) {
 
 }
 
-class NameError (BaseError) {
+class nameError (baseError) {
 
 }
 
-class ExtensionError (BaseError) {
+class extensionError (baseError) {
 
 }
 
-class AttributeError (BaseError) {
+class attributeError (baseError) {
 
 }
 
-class TypeError (BaseError) {
+class typeError (baseError) {
     
 }
 

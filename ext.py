@@ -1,9 +1,8 @@
-from LumaExtBundle import Raw, DictToDict
+from LumaExtBundle import Raw, DictToDict, ParseMe
 
 
 def func(arg=""):
-    print(arg)
-    print("hiii")
+    return ParseMe({"type": "str", "args": [Raw("stringhbhbiyb" + str(arg))]})
 
 
 # TODO: add class support
@@ -21,9 +20,9 @@ LumaExtension = {
         ],
     },
     "func": {
-        "type": "FunctionType",
+        "type": "functionType",
         "name": "func",
         "body": func,
-        "args": [{"name": "arg"}],
+        "args": [{"name": "arg", "default": Raw("")}],
     },
 }

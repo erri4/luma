@@ -1,10 +1,11 @@
-pip install / site : vexainstaller.exe
-which goes to erri4 / vexa-itself repo and gets executables and stuff
+pip install / site : lumainstaller.exe
+which goes to erri4 / luma-itself repo and gets executables and stuff
 file structure:
 C:/
- - vexa/
+ - luma/
+ - # this in PATH
  - - bin/
- - - - # this in PATH
+ - - - # this in PATH too
  - - - the executables
  - - lib/
  - - - the libraries
