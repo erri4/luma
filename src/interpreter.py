@@ -12,10 +12,7 @@ import os
 """
 TODO:
 OPTIMIZE
-ONLY when finished: self.keywords: [...] (not setable) # if it is not clear, whoever is seeing this right now, it will be clear in next commits.
-(im close to finish luma 1.0.0 (!!!!))
-
-. luma extentions (`for loops` and stuff) # this will be just importing py extended
+. luma language extentions (`for loops` and stuff) # this will be just importing py extended
 
 . installer
 
