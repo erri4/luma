@@ -267,6 +267,19 @@ class LumaInterpreter:
 
     def parse_py(self, token):
         if type(token) is dict:
+            if token.get('type', None) == 'classType':
+                thecls = self.LumaClass(token['name'], [])
+                if token['parent']:
+                    parent = token['parent']
+                    thecls.functions = self.env[parent].functions.copy()
+                    thecls.vars = self.env[parent].vars.copy()
+                    thecls.parents = self.env[parent].parents.copy()
+                    thecls.parents.append(parent)
+                thecls.vars |= {var['name']: self.parse_py(var) for var in token['vars']}
+                thecls.functions |= {func['name']: self.parse_py(func) for func in token['functions']}
+                thecls.classes |= {cls_['name']: self.parse_py(cls_) for cls_ in token['classes']}
+                thecls.functions['constructor'] = self.parse_py(token['constructor']) if token['constructor'] else thecls.functions['constructor']
+                return thecls
             if token.get('type', None) == 'functionType':
                 args = token['args']
                 for arg in args:
@@ -385,7 +398,6 @@ class LumaInterpreter:
                 classes[class_name].vars = classes[parent].vars.copy()
                 classes[class_name].parents = classes[parent].parents.copy()
                 classes[class_name].parents.append(parent)
-                classes[class_name].typename = class_name
             self.runsubprogram(body, classes[class_name], line1=linenum+1, file=file)
         elif firstword == "constructor":
             class_name = line[12 : line.find(" (")]
@@ -1399,7 +1411,7 @@ class LumaInterpreter:
             def stringify(
                 this: "LumaInterpreter.InstancedLumaObject | None" = None,
             ) -> "LumaInterpreter.InstancedLumaObject":
-                return this
+                return LumaInterpreter().env['str'].instance([this.value])
 
             self.functions["@stringify"] = LumaInterpreter.LumaFunction(
                 "@stringify",

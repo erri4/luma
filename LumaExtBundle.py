@@ -14,3 +14,11 @@ class DictToDict:
 class ParseMe:
     def __init__(self, data: dict):
         self.data = data
+
+def Function(f, args):
+    return {
+        "type": "functionType",
+        "name": f.__name__,
+        "body": f,
+        "args": args,
+    }

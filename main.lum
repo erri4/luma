@@ -1,1 +1,8 @@
-set null to "gi"
+extend :ext.py
+
+show (func ())
+
+set tst to new mycls ("gs")
+
+show (tst)
+tst.funccls ()
