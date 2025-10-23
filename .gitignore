@@ -3,5 +3,6 @@ _internal/
 *.png
 *.txt
 *.exe
+!luma.exe
 test.*
 nuitka.md

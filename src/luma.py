@@ -6,8 +6,6 @@ import sys
 if __name__ == "__main__":
     filename = sys.argv[1]
     interpreter = LumaInterpreter()
-    with open("log.txt", "w") as logf:
-        logf.write("")
     if filename.endswith(".lum"):
         try:
             with open(f"{filename}") as file:

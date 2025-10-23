@@ -1137,9 +1137,10 @@ class LumaInterpreter:
                 argdict["this"] = Object
             interpreter.localparams.append(argdict)
             orig_vars = set(varsholder.keys())
+            r = None
             if type(self.body) is str:
                 r = interpreter.runsubprogram(self.body, realfunc=True, line1=self.line + 1, file=self.file)
-            elif type(self.body) is FunctionType:
+            elif callable(self.body):
                 rargs = []
                 for key in argdict:
                     rargs.append(argdict[key])
@@ -1474,6 +1475,7 @@ class LumaInterpreter:
             args: list[EvaluatedType],
             parents: list[str],
         ):
+            self.value = None
             self.vars = varis.copy()
             self.parents = parents
             self.functions = functions.copy()
