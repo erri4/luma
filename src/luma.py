@@ -1,10 +1,17 @@
 from interpreter import LumaInterpreter
-import sys
+import argparse
 
-
-# profile: python -m cProfile -s tottime ./src/luma.py ./main.lum
 if __name__ == "__main__":
-    filename = sys.argv[1]
+    parser = argparse.ArgumentParser(
+        description="Luma launcher that runs a script."
+    )
+    parser.add_argument(
+        "script",
+        help="Path to the Luma script to run"
+    )
+
+    args = parser.parse_args()
+    filename: str = args.script
     interpreter = LumaInterpreter()
     if filename.endswith(".lum"):
         try:

@@ -14,8 +14,6 @@ TODO:
 OPTIMIZE
 . luma language extentions (`for loops` and stuff) # this will be just importing py extended
 
-. installer
-
 . pmfl
 """
 
@@ -66,6 +64,7 @@ class LumaInterpreter:
         def nativecode(
             pytext: str, kwargs: LumaInterpreter.InstancedLumaObject | None = None
         ):
+            sys.path.append(r"C:\PyLuma")
             globs = {"filename": self.filename}
             data: dict[str | LumaInterpreter.InstancedLumaObject["str"], Any] = (
                 kwargs.value if kwargs else {}
@@ -255,8 +254,11 @@ class LumaInterpreter:
         if module_dir not in sys.path:
             sys.path.insert(0, module_dir)
 
-        spec = importlib.util.spec_from_file_location(module_name, ext)
-        module = importlib.util.module_from_spec(spec)
+        try:
+            spec = importlib.util.spec_from_file_location(module_name, ext)
+            module = importlib.util.module_from_spec(spec)
+        except FileNotFoundError:
+            LumaInterpreter.throw(self.env['extensionError'], f"The file at {ext} does not exist.")
         spec.loader.exec_module(module)
 
         if hasattr(module, "LumaExtension"):
