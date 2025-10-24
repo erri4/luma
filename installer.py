@@ -11,7 +11,10 @@ try:
     import winreg
     import win32con
     import win32gui
-except: pass
+except:
+    if os.name == "nt":
+        print('please install win32. use `pip install pywin32`')
+        exit()
 
 dest_folder = "C:/PyLuma"
 
