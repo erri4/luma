@@ -1,19 +1,24 @@
-import winreg
 import ctypes
 import sys
-import win32con
-import win32gui
 import urllib.request
 import zipfile
 import os
 import io
 import shutil
+import stat
+
+try:
+    import winreg
+    import win32con
+    import win32gui
+except: pass
+
 dest_folder = "C:/PyLuma"
 
 if os.name == "nt":
     dest_folder = "C:/PyLuma"
 elif os.name == "posix":
-    dest_folder = "/PyLuma"
+    dest_folder = os.path.expanduser("~/PyLuma")
 
 def get_files():
     global dest_folder
@@ -21,7 +26,7 @@ def get_files():
 
     if os.path.exists(dest_folder):
         shutil.rmtree(dest_folder)
-    os.makedirs(dest_folder, exist_ok=True)
+    os.makedirs(dest_folder)
 
     with urllib.request.urlopen(url) as response:
         zip_data = response.read()
@@ -60,14 +65,25 @@ def add_to_PATH(path: str):
             f.write(f'\nexport PATH="$PATH:{path}"\n')
 
 def is_admin():
+    if os.name == "posix":
+        return True
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()
     except:
         return False
 
 if is_admin():
+    get_files()
     add_to_PATH(dest_folder)
     add_to_PATH(os.path.join(dest_folder, 'bin'))
+    if os.name == "posix":
+        current_permissions = os.stat(os.path.join(dest_folder, 'bin', 'luma')).st_mode
+        os.chmod(os.path.join(dest_folder, 'bin', 'luma'), current_permissions | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+        current_permissions = os.stat(os.path.join(dest_folder, 'bin', 'luma.bin')).st_mode
+        os.chmod(os.path.join(dest_folder, 'bin', 'luma.bin'), current_permissions | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+        exit()
 
     win32gui.SendMessageTimeout(
         win32con.HWND_BROADCAST,
@@ -78,5 +94,4 @@ if is_admin():
         5000
     )
 else:
-    get_files()
     ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
