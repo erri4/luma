@@ -8,15 +8,16 @@ import zipfile
 import os
 import io
 import shutil
+dest_folder = "C:/PyLuma"
+
+if os.name == "nt":
+    dest_folder = "C:/PyLuma"
+elif os.name == "posix":
+    dest_folder = "/PyLuma"
 
 def get_files():
+    global dest_folder
     url = "https://github.com/Erri4/PyLuma/archive/refs/heads/main.zip"
-    dest_folder = "C:/PyLuma"
-    
-    if os.name == "nt":
-        dest_folder = "C:/PyLuma"
-    elif os.name == "posix":
-        dest_folder = "/PyLuma"
 
     if os.path.exists(dest_folder):
         shutil.rmtree(dest_folder)
@@ -37,21 +38,26 @@ def get_files():
                 os.makedirs(os.path.dirname(target_path), exist_ok=True)
                 with open(target_path, "wb") as f:
                     f.write(zip_ref.read(member))
-    file_path = os.path.join(dest_folder, "bin/luma" + ".exe" if os.name != "nt" else '.bin')
+    file_path = os.path.join(dest_folder, "bin/luma" + ".exe" if os.name != "nt" else '')
     if os.path.exists(file_path):
         os.remove(file_path)
 
 
 def add_to_PATH(path: str):
-    key = r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
-    with winreg.ConnectRegistry(None, winreg.HKEY_LOCAL_MACHINE) as hklm:
-        with winreg.OpenKey(hklm, key, 0, winreg.KEY_READ | winreg.KEY_WRITE) as env_key:
-            current_path: str = winreg.QueryValueEx(env_key, "Path")[0]
-            if path.lower() in current_path.lower():
-                print("Already in PATH.")
-                return
-            new_path_value = current_path.rstrip(';') + ";" + path
-            winreg.SetValueEx(env_key, "Path", 0, winreg.REG_EXPAND_SZ, new_path_value)
+    if os.name == "nt":
+        key = r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+        with winreg.ConnectRegistry(None, winreg.HKEY_LOCAL_MACHINE) as hklm:
+            with winreg.OpenKey(hklm, key, 0, winreg.KEY_READ | winreg.KEY_WRITE) as env_key:
+                current_path: str = winreg.QueryValueEx(env_key, "Path")[0]
+                if path.lower() in current_path.lower():
+                    print("Already in PATH.")
+                    return
+                new_path_value = current_path.rstrip(';') + ";" + path
+                winreg.SetValueEx(env_key, "Path", 0, winreg.REG_EXPAND_SZ, new_path_value)
+    elif os.name == "posix":
+        bashrc = os.path.expanduser("~/.bashrc")
+        with open(bashrc, "a") as f:
+            f.write(f'\nexport PATH="$PATH:{path}"\n')
 
 def is_admin():
     try:
@@ -60,8 +66,8 @@ def is_admin():
         return False
 
 if is_admin():
-    add_to_PATH(r"C:\PyLuma")
-    add_to_PATH(r"C:\PyLuma\bin")
+    add_to_PATH(dest_folder)
+    add_to_PATH(os.path.join(dest_folder, 'bin'))
 
     win32gui.SendMessageTimeout(
         win32con.HWND_BROADCAST,
