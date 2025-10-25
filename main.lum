@@ -1,4 +1,4 @@
-extend :ext.py
+extend packages:ext.py
 
 show (func ())
 
