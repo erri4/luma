@@ -440,8 +440,8 @@ class LumaInterpreter:
                         "cannot use 'this' keyword outside class method call",
                     )
                 if varname in self.SAVED_KEYWORDS:
-                    if varname in ['true', 'false','this', 'null']:
-                        if file != "builtins.lum":
+                    if varname in ['true', 'false', 'null']:
+                        if not file.endswith("builtins.lum"):
                             LumaInterpreter.throw(
                                 self.env["typeError"],
                                 f"cannot assign to '{varname}': saved keyword",
