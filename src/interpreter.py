@@ -257,9 +257,9 @@ class LumaInterpreter:
         try:
             spec = importlib.util.spec_from_file_location(module_name, ext)
             module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
         except FileNotFoundError:
             LumaInterpreter.throw(self.env['extensionError'], f"The file at {ext} does not exist.")
-        spec.loader.exec_module(module)
 
         if hasattr(module, "LumaExtension"):
             for name in module.LumaExtension:
