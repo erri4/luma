@@ -65,7 +65,7 @@ def add_to_PATH(path: str):
     elif os.name == "posix":
         bashrc = os.path.expanduser("~/.bashrc")
         with open(bashrc, "a") as f:
-            f.write(f'\nexport PATH="$PATH:{path}"\n')
+            f.write(f'\nexport PATH="{path}:$PATH"\n')
 
 def is_admin():
     if os.name == "posix":
