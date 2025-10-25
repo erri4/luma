@@ -65,6 +65,7 @@ class LumaInterpreter:
             pytext: str, kwargs: LumaInterpreter.InstancedLumaObject | None = None
         ):
             sys.path.append(r"C:\PyLuma")
+            sys.path.append(os.path.expanduser('~/PyLuma'))
             globs = {"filename": self.filename}
             data: dict[str | LumaInterpreter.InstancedLumaObject["str"], Any] = (
                 kwargs.value if kwargs else {}
