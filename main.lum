@@ -1,1 +1,5 @@
-extend :example.py
+extend packages:forloops.py
+
+for (set i to 0, i < 10, i + 1){
+    show (i)
+}
