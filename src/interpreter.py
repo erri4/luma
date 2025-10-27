@@ -1,4 +1,3 @@
-from types import FunctionType
 from typing import Any, Callable, Union, LiteralString
 import importlib.util
 import operator
@@ -41,7 +40,7 @@ class LumaInterpreter:
         "/": "@division",
         "*": "@multiplication",
     }
-    REAL_OPERATORS: dict[str, FunctionType] = {
+    REAL_OPERATORS: dict[str, Callable] = {
         "-": operator.sub,
         "+": operator.add,
         "/": operator.truediv,
@@ -52,8 +51,12 @@ class LumaInterpreter:
     LOGICAL_OP_RE = re.compile(
         r"\s*(" + "|".join(re.escape(op) for op in LOGICAL_OPERATORS) + r")\s*"
     )
-    SAVED_KEYWORDS = ["set", "to", "function", "constructor", "class", "null", "false", "true", "import", "if", "extend", "elseif", "else", "as", "try", "catch", "while", "stop", "again", "return", "throw"]
-    tb: list[str] = []
+    SAVED_KEYWORDS: list[str] = ["set", "to", "function", "constructor", "class", "null", "false", "true", "import", "if", "extend", "elseif", "else", "as", "try", "catch", "while", "stop", "again", "return", "throw"]
+    tb: list[tuple[int, str, str]] = []
+    overloads: dict[str, list[Callable]] = {}
+    overrides: dict[str, list[Callable]] = {}
+    filename: str = None
+    scopes: list[str] = []
 
     def __new__(cls):
         if cls._instance is None:
@@ -116,7 +119,7 @@ class LumaInterpreter:
         self.env["baseError"] = BaseError
 
         self.filename = filename
-        self.scopes: list[str] = [program]
+        self.scopes.append(program)
         self.runimport(":builtins.lum", None)
         try:
             self.runsubprogram(program, infunc=False, file=self.filename)
@@ -290,6 +293,18 @@ class LumaInterpreter:
                         arg['default'] = self.parse_py(arg['default'])
                     except KeyError: pass
                 return self.LumaFunction(token['name'], args, token['body'], 0, "EXTERNAL")
+            if type(token.get('type', None)).__name__ == 'Overload':
+                funcname = token.get('type', None).funcname
+                if not self.overloads.get(funcname, None):
+                    self.overloads[funcname] = [token['function']]
+                else:
+                    self.overloads[funcname].append(token['function'])
+            if type(token.get('type', None)).__name__ == 'Override':
+                funcname = token.get('type', None).funcname
+                if not self.overrides.get(funcname, None):
+                    self.overrides[funcname] = [token['function']]
+                else:
+                    self.overrides[funcname].append(token['function'])
             if token.get('type', None) in self.env.keys():
                 if type(self.env[token.get('type', None)]) is LumaInterpreter.LumaClass or token.get('type', None) in self.PY_IMPL_CLASSES:
                     return self.env[token['type']].instance([self.parse_py(tk) for tk in token['args']])
@@ -317,10 +332,12 @@ class LumaInterpreter:
         subprogram = "\n".join(subprogram)
         self.scopes.append(subprogram)
         res = None
+        l = 0
         for subline in subprogram.splitlines():
+            l += 1
             self.tb.append([line1, subline, file])
             try:
-                res = self.process(subline, line1, Object, file)
+                res = self.process(subline, line1 if not infunc else l, Object, file)
             except LumaInterpreter.SubProgramExitCode as e:
                 if e.code == "return":
                     self.tb.pop()
@@ -351,6 +368,9 @@ class LumaInterpreter:
         file: str = '',
     ):
         line = line.replace(r"\n", "\n")
+        for func in self.overloads.get('process', []):
+            if func(self, line, linenum, Object, file):
+                return
         if Object is None or type(Object) is LumaInterpreter:
             varis = self.env
             functions: dict[str, LumaInterpreter.LumaFunction] = self.env
@@ -524,14 +544,12 @@ class LumaInterpreter:
                     raise e from None
         elif firstword == "if":
             condition = line[4 : line.find("){")]
-            a = "\n".join(program.splitlines()[linenum - 1 :])
-            stop = len(a[: a.find("){") + 3])
-            for linee in a[a.find("){") + 3 :].splitlines():
-                if linee != "":
-                    if linee[0] == "}":
-                        break
-                stop += len(linee) + 1
-            body = a[a.find("){") + 3 : stop].strip()
+            body = ''
+            for subline in program.splitlines()[linenum:]:
+                if subline.strip() == '}':
+                    break
+                body += self.removetab(subline) + "\n"
+            body = body.strip()
             conditions = []
             bodys = {}
             stops = {}
@@ -742,7 +760,7 @@ class LumaInterpreter:
             if i + 2 >= len(cond):
                 break
             left, op, right = cond[i], cond[i + 1], cond[i + 2]
-            val = LumaInterpreter.eval_single_condition([left, op, right])
+            val = LumaInterpreter.eval_single_condition((left, op, right))
             if invert_next:
                 val = not val
                 invert_next = False
@@ -759,7 +777,8 @@ class LumaInterpreter:
                     i += 1
                 else:
                     result = val
-        return self.env["bool"].instance([int(result)])
+        r = self.env["bool"].instance([int(result)])
+        return r
 
     @staticmethod
     def eval_single_condition(parts: tuple[EvaluatedType, str, EvaluatedType]):
@@ -1106,6 +1125,11 @@ class LumaInterpreter:
 
         def __repr__(self):
             return f"<class {self.actualname} from luma>"
+
+        def __eq__(self, other: "EvaluatedType | LumaInterpreter.LumaClass") -> bool:
+            if type(other) is LumaInterpreter.LumaClass:
+                return other.actualname == self.actualname
+            return False
 
         def call(self, args):
             raise NotImplementedError

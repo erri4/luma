@@ -1,8 +1,1 @@
-extend packages:ext.py
-
-show (func ())
-
-set tst to new mycls ("gs")
-
-show (tst)
-tst.funccls ()
+extend :example.py
