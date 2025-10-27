@@ -16,7 +16,7 @@ def process(self: LumaTypes.LumaInterpreter, line: str, linenum: int, Object = N
         self.env[varname] = value
         body = ''
         for subline in program.splitlines()[linenum:]:
-            if subline.strip() == '}':
+            if subline[0] == '}':
                 break
             body += self.removetab(subline) + "\n"
         body = body.strip()

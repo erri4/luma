@@ -546,7 +546,7 @@ class LumaInterpreter:
             condition = line[4 : line.find("){")]
             body = ''
             for subline in program.splitlines()[linenum:]:
-                if subline.strip() == '}':
+                if subline[0] == '}':
                     break
                 body += self.removetab(subline) + "\n"
             body = body.strip()
