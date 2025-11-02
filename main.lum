@@ -1,5 +1,23 @@
-extend packages:forloops.py
+import lib:math.lum
+import lib:math.lum as math
 
-for (set i to 0, i < 10, i + 1){
-    show (i)
+try {
+    if (1 == 1){
+        throw new baseError("hi")
+    }
 }
+catch (anyError as e){
+    show("c")
+    show(e)
+    show(&e)
+}
+show(show("hi"))
+show(input("hdf"))
+show([1, 2, 3])
+show(range(0, 10))
+set ls to []
+ls.add("D")
+show(ls)
+show(&&ls)
+show(pi)
+show(math.fibonacci(15))
