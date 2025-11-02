@@ -7,12 +7,10 @@ import re
 import os
 
 
-"""
+r"""
 TODO:
 OPTIMIZE
 compile: nuitka --follow-imports .\src\luma.py --standalone --windows-console-mode=force
-
-. [index]
 
 . +=, -=, *=, /=, ++, --
 
@@ -883,6 +881,25 @@ class LumaInterpreter:
             return False
 
         return True
+    
+    @staticmethod
+    def is_index_call(expr: str):
+        expr = expr.strip()
+        if "[" not in expr:
+            return False
+        for op in LumaInterpreter.OPERATORS:
+            if len(LumaInterpreter.smrtsplt(expr, op)) > 1:
+                return False
+        splitted = expr.split("[")
+        prefix, rest = "[".join(splitted[0:-1]), splitted[-1]
+        i = expr.find('[')
+        prefix = expr[:i]
+        rest = expr[i+1:]
+        if not prefix.strip():
+            return False
+        if not rest.endswith("]"):
+            return False
+        return True
 
     def evaluate(
         self, expr: str, evalforwhat: str | None = None, line: int = 0
@@ -950,6 +967,13 @@ class LumaInterpreter:
                 r = self.parse_py(getattr(r, "data"))
             if r is None:
                 return self.env['null']
+            return r
+        elif LumaInterpreter.is_index_call(expr):
+            splitted = LumaInterpreter.smrtsplt(expr, '[')
+            prefix = "[".join(splitted[0:-1])
+            obj: LumaInterpreter.InstancedLumaObject = self.evaluate(prefix)
+            index = self.evaluate(expr[len(prefix) + 1:-1])
+            r = obj.callmethod('at', [index])
             return r
         elif expr in scope.keys():
             r = scope[expr]

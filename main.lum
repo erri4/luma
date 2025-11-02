@@ -21,3 +21,7 @@ show(ls)
 show(&&ls)
 show(pi)
 show(math.fibonacci(15))
+show(ls[0])
+set lst to [1, 2, [1, 2, 3]]
+show(lst)
+show(lst[2][1])
