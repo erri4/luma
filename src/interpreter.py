@@ -10,6 +10,8 @@ import os
 """
 TODO:
 OPTIMIZE
+compile: nuitka --follow-imports .\src\luma.py --standalone --windows-console-mode=force
+
 . [index]
 
 . +=, -=, *=, /=, ++, --
