@@ -12,8 +12,6 @@ TODO:
 OPTIMIZE
 compile: nuitka --follow-imports .\src\luma.py --standalone --windows-console-mode=force
 
-. +=, -=, *=, /=, ++, --
-
 . pmfl
 """
 
@@ -40,6 +38,10 @@ class LumaInterpreter:
         "+": "@addition",
         "/": "@division",
         "*": "@multiplication",
+        "+=": "@addition",
+        "-=": "@subtraction",
+        "*=": "@multiplication",
+        "/=": "@division",
     }
     REAL_OPERATORS: dict[str, Callable] = {
         "-": operator.sub,
@@ -391,6 +393,8 @@ class LumaInterpreter:
                     break
                 body += subline + "\n"
             body = body.strip()
+            if line[-1] == '}':
+                body = ''
             functions[func_name] = self.LumaFunction(func_name, args, body, linenum+1, file)
         elif firstword == "throw":
             exc: LumaInterpreter.InstancedLumaObject = self.evaluate(line[6:])
@@ -403,6 +407,8 @@ class LumaInterpreter:
                     break
                 body += subline + "\n"
             body = body.strip()
+            if line[-1] == '}':
+                body = ''
             parent = None
             classes[class_name] = self.LumaClass(
                 class_name,
@@ -427,6 +433,8 @@ class LumaInterpreter:
                     break
                 body += subline + "\n"
             body = body.strip()
+            if line[-1] == '}':
+                body = ''
             functions["constructor"] = self.LumaFunction(
                 "constructor",
                 args,
@@ -932,9 +940,17 @@ class LumaInterpreter:
                 term0 = self.evaluate(op_token.join(terms[:-1]))
                 if type(term0) is LumaInterpreter.InstancedLumaObject:
                     if self.OPERATORS[op] in term0.functions:
-                        opstr = f"({op_token.join(terms[:-1])}).{self.OPERATORS[op]} ({terms[-1]})"
-                        opstrr = self.evaluate(opstr)
-                        return opstrr
+                        if op in ['+=', '/=', '-=', '*=']:
+                            if op_token.join(terms[:-1]) in self.env:
+                                self.env[op_token.join(terms[:-1])] = term0.callmethod(self.OPERATORS[op], [self.evaluate(terms[-1])])
+                                return self.env[op_token.join(terms[:-1])]
+                            else:
+                                LumaInterpreter.throw(
+                                    self.env["typeError"],
+                                    f"unsupported operator: unable to perform in place operator {op} on non-global variable {op_token.join(terms[:-1])}: it's non-global",
+                                )
+                        opstr = term0.callmethod(self.OPERATORS[op], [self.evaluate(terms[-1])])
+                        return opstr
                     else:
                         LumaInterpreter.throw(
                             self.env["typeError"],

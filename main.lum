@@ -1,27 +1,17 @@
-import lib:math.lum
-import lib:math.lum as math
-
-try {
-    if (1 == 1){
-        throw new baseError("hi")
-    }
+set i to 0
+show(i)
+i += 1
+show(i)
+i -= 3
+show(i)
+i *= -2
+show(i)
+i /= 2
+show(i)
+function tst(ge){
+    set g to ge
+    g += 1
+    show(g)
+    show(ge)
 }
-catch (anyError as e){
-    show("c")
-    show(e)
-    show(&e)
-}
-show(show("hi"))
-show(input("hdf"))
-show([1, 2, 3])
-show(range(0, 10))
-set ls to []
-ls.add("D")
-show(ls)
-show(&&ls)
-show(pi)
-show(math.fibonacci(15))
-show(ls[0])
-set lst to [1, 2, [1, 2, 3]]
-show(lst)
-show(lst[2][1])
+tst(12)
