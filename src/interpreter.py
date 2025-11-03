@@ -386,7 +386,7 @@ class LumaInterpreter:
         firstword = LumaInterpreter.getfirstword(line)
         if firstword == "function":
             func_name = line[9 : line.find("(")].strip()
-            args = self.parse_args(line[line.find("(") + 1 : line.find(")")])
+            args = self.parse_args(line[line.find("(") + 1 : line.rfind(")")])
             body = ''
             for subline in program.splitlines()[linenum:]:
                 if (subline + " ")[0] == '}':
@@ -426,7 +426,7 @@ class LumaInterpreter:
             self.runsubprogram(body, classes[class_name], line1=linenum+1, file=file)
         elif firstword == "constructor":
             class_name = line[12 : line.find(" (")]
-            args = self.parse_args(line[line.find(" (") + 2 : line.find(")")])
+            args = self.parse_args(line[line.find(" (") + 2 : line.rfind(")")])
             body = ''
             for subline in program.splitlines()[linenum:]:
                 if (subline + " ")[0] == '}':

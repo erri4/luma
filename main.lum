@@ -15,3 +15,4 @@ function tst(ge){
     show(ge)
 }
 tst(12)
+show(range(10))
