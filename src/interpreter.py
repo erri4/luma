@@ -1054,7 +1054,9 @@ class LumaInterpreter:
             )
 
     class LumaClass:
-        def __init__(self, name: str, parents: list[str] = []):
+        def __init__(self, name: str, parents: list[str] = ['Object']):
+            if name == 'Object':
+                parents = []
             self.actualname = name
             self.typename = "classType"
             self.parents = parents
@@ -1184,7 +1186,7 @@ class LumaInterpreter:
             return result
 
     class LumaClassDict(LumaClass):
-        def __init__(self, name, parents=[]):
+        def __init__(self, name: str, parents: list[str] = ['Object']):
             super().__init__(name, parents)
 
             def constructor(
@@ -1297,7 +1299,7 @@ class LumaInterpreter:
             )
 
     class LumaClassBool(LumaClass):
-        def __init__(self, name, parents=[]):
+        def __init__(self, name: str, parents: list[str] = ['Object']):
             super().__init__(name, parents)
 
             def constructor(
@@ -1364,7 +1366,7 @@ class LumaInterpreter:
             return value.__lbool__()
 
     class LumaClassStr(LumaClass):
-        def __init__(self, name, parents=[]):
+        def __init__(self, name: str, parents: list[str] = ['Object']):
             super().__init__(name, parents)
 
             def constructor(
