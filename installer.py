@@ -6,6 +6,8 @@ import os
 import io
 import shutil
 import stat
+import json
+import time
 
 try:
     import winreg
@@ -25,6 +27,7 @@ elif os.name == "posix":
 
 def get_files():
     global dest_folder
+    time.sleep(2)
     url = "https://github.com/Erri4/PyLuma/archive/refs/heads/main.zip"
 
     if os.path.exists(dest_folder):
@@ -49,6 +52,44 @@ def get_files():
     file_path = os.path.join(dest_folder, "bin/luma" + ".exe" if os.name != "nt" else '')
     if os.path.exists(file_path):
         os.remove(file_path)
+    repo = "Erri4/PyLuma"
+
+    url = f"https://api.github.com/repos/{repo}/commits/main"
+
+    with urllib.request.urlopen(url) as response:
+        data = json.load(response)
+
+    commit = data["sha"]
+    jsonpth = os.path.join(dest_folder, "version.json")
+    with open(jsonpth, 'r+') as f:
+        version = json.load(f)
+        version['commit'] = commit
+        json.dump(version, f)
+    if os.name == "nt":
+        installer_src = os.path.join(dest_folder, "installer.exe")
+        windows_dir = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"))
+
+        if os.path.exists(installer_src):
+            installer_dest = os.path.join(windows_dir, "installer.exe")
+            try:
+                shutil.copy2(installer_src, installer_dest)
+            except PermissionError:
+                print("Permission denied: could not copy installer.exe to C:\\Windows. Run as administrator.")
+            except Exception as e:
+                print(f"Failed to copy installer.exe: {e}")
+    elif os.name == "posix":
+        installer_src = os.path.join(dest_folder, "installer.bin")
+        usr_local_bin = "/usr/local/bin"
+
+        if os.path.exists(installer_src):
+            installer_dest = os.path.join(usr_local_bin, "installer.bin")
+            try:
+                shutil.copy2(installer_src, installer_dest)
+                os.chmod(installer_dest, 0o755)
+            except PermissionError:
+                print("Permission denied: could not copy installer.bin to /usr/local/bin. Run as root or use sudo.")
+            except Exception as e:
+                print(f"Failed to copy installer.bin: {e}")
 
 
 def add_to_PATH(path: str):
