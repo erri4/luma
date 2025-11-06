@@ -5,6 +5,8 @@ import json
 import sys
 import os
 import subprocess
+import shutil
+import time
 
 def run_installer():
     if os.name == "nt":
@@ -29,6 +31,34 @@ def run_installer():
         print(f"Failed to run installer: {e}")
     sys.exit()
 
+def apt_ins(dest_folder):
+    time.wait(1)
+    if os.name == "nt":
+        installer_src = os.path.join(dest_folder, "installer.exe")
+        windows_dir = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"))
+
+        if os.path.exists(installer_src):
+            installer_dest = os.path.join(windows_dir, "installer.exe")
+            try:
+                shutil.copy2(installer_src, installer_dest)
+            except PermissionError:
+                print("Permission denied: could not copy installer.exe to C:\\Windows. Run as administrator.")
+            except Exception as e:
+                print(f"Failed to copy installer.exe: {e}")
+    elif os.name == "posix":
+        installer_src = os.path.join(dest_folder, "installer.bin")
+        usr_local_bin = "/usr/local/bin"
+
+        if os.path.exists(installer_src):
+            installer_dest = os.path.join(usr_local_bin, "installer.bin")
+            try:
+                shutil.copy2(installer_src, installer_dest)
+                os.chmod(installer_dest, 0o755)
+            except PermissionError:
+                print("Permission denied: could not copy installer.bin to /usr/local/bin. Run as root or use sudo.")
+            except Exception as e:
+                print(f"Failed to copy installer.bin: {e}")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Luma launcher that runs a script."
@@ -39,8 +69,9 @@ if __name__ == "__main__":
         help="Path to the Luma script to run"
     )
 
-    parser.add_argument("--update", action="store_true", help="Uupdate luma")
-    parser.add_argument("--version", action="store_true", help="Print  current version")
+    parser.add_argument("--update", action="store_true", help="Update luma")
+    parser.add_argument("--version", action="store_true", help="Print current version")
+    parser.add_argument("--aptins-internal", help="Internal. Do not use.")
 
     args = parser.parse_args()
 
@@ -49,6 +80,9 @@ if __name__ == "__main__":
 
     if args.update:
         run_installer()
+
+    if args.aptins_internal:
+        apt_ins(args.aptins_internal)
 
     if args.version:
         if getattr(sys, "frozen", False):

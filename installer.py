@@ -8,6 +8,7 @@ import shutil
 import stat
 import json
 import time
+import subprocess
 
 try:
     import winreg
@@ -70,31 +71,30 @@ def get_files():
         version['commit'] = commit
         with open(jsonpth, 'w') as w:
             json.dump(version, w)
+    if os.name == "posix":
+        current_permissions = os.stat(os.path.join(dest_folder, 'bin', 'luma')).st_mode
+        os.chmod(os.path.join(dest_folder, 'bin', 'luma'), current_permissions | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+        current_permissions = os.stat(os.path.join(dest_folder, 'bin', 'luma.bin')).st_mode
+        os.chmod(os.path.join(dest_folder, 'bin', 'luma.bin'), current_permissions | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    else:
+        win32gui.SendMessageTimeout(
+            win32con.HWND_BROADCAST,
+            win32con.WM_SETTINGCHANGE,
+            0,
+            "Environment",
+            win32con.SMTO_ABORTIFHUNG,
+            5000
+        )
     if os.name == "nt":
         installer_src = os.path.join(dest_folder, "installer.exe")
-        windows_dir = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"))
-
-        if os.path.exists(installer_src):
-            installer_dest = os.path.join(windows_dir, "installer.exe")
-            try:
-                shutil.copy2(installer_src, installer_dest)
-            except PermissionError:
-                print("Permission denied: could not copy installer.exe to C:\\Windows. Run as administrator.")
-            except Exception as e:
-                print(f"Failed to copy installer.exe: {e}")
+        subprocess.Popen(['luma', installer_src])
+        sys.exit()
     elif os.name == "posix":
         installer_src = os.path.join(dest_folder, "installer.bin")
-        usr_local_bin = "/usr/local/bin"
-
-        if os.path.exists(installer_src):
-            installer_dest = os.path.join(usr_local_bin, "installer.bin")
-            try:
-                shutil.copy2(installer_src, installer_dest)
-                os.chmod(installer_dest, 0o755)
-            except PermissionError:
-                print("Permission denied: could not copy installer.bin to /usr/local/bin. Run as root or use sudo.")
-            except Exception as e:
-                print(f"Failed to copy installer.bin: {e}")
+        subprocess.Popen(['luma', installer_src])
+        sys.exit()
+        
 
 
 def add_to_PATH(path: str):
@@ -122,26 +122,9 @@ def is_admin():
         return False
 
 if is_admin():
-    get_files()
     add_to_PATH(dest_folder)
     add_to_PATH(os.path.join(dest_folder, 'bin'))
-    if os.name == "posix":
-        current_permissions = os.stat(os.path.join(dest_folder, 'bin', 'luma')).st_mode
-        os.chmod(os.path.join(dest_folder, 'bin', 'luma'), current_permissions | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-
-        current_permissions = os.stat(os.path.join(dest_folder, 'bin', 'luma.bin')).st_mode
-        os.chmod(os.path.join(dest_folder, 'bin', 'luma.bin'), current_permissions | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-
-        sys.exit()
-
-    win32gui.SendMessageTimeout(
-        win32con.HWND_BROADCAST,
-        win32con.WM_SETTINGCHANGE,
-        0,
-        "Environment",
-        win32con.SMTO_ABORTIFHUNG,
-        5000
-    )
+    get_files()
 else:
     if os.name == "posix":
         print("please use sudo.")

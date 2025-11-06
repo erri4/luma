@@ -12,6 +12,10 @@ TODO:
 OPTIMIZE
 compile: nuitka --follow-imports .\src\luma.py --standalone --windows-console-mode=force
 
+. import and extend vars and funcs ... holders
+
+. @pylibs
+
 . pmfl
 """
 
