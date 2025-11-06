@@ -27,7 +27,7 @@ def run_installer():
         print(f"Installer failed with exit code {e.returncode}")
     except Exception as e:
         print(f"Failed to run installer: {e}")
-    exit()
+    sys.exit()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     jsfile = os.path.join(base_dir, 'version.json')
     with open(jsfile) as f:
         if json.load(f)['commit'] != commit:
-            print('A new version of luma is available. To update use \033[32mluma --upgrade\033[0m.')
+            print('A new version of luma is available. To update use \033[32mluma --update\033[0m.')
             sys.exit(0)
     filename: str = args.script
     interpreter = LumaInterpreter()
