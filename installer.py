@@ -115,7 +115,7 @@ def add_to_PATH(path: str):
 
 def is_admin():
     if os.name == "posix":
-        return True
+        return os.geteuid() == 0
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()
     except:
@@ -143,4 +143,7 @@ if is_admin():
         5000
     )
 else:
+    if os.name == "posix":
+        print("please use sudo.")
+        sys.exit()
     ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
