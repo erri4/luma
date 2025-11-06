@@ -22,7 +22,7 @@ def run_installer():
         if os.name == "nt":
             subprocess.run([installer_path], check=True)
         else:
-            subprocess.run([installer_path], check=True)
+            subprocess.run(["sudo", installer_path], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Installer failed with exit code {e.returncode}")
     except Exception as e:
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     with open(jsfile) as f:
         if json.load(f)['commit'] != commit:
             print('A new version of luma is available. To update use \033[32mluma --upgrade\033[0m.')
-            exit()
+            sys.exit(0)
     filename: str = args.script
     interpreter = LumaInterpreter()
     if filename.endswith(".lum"):

@@ -49,9 +49,13 @@ def get_files():
                 os.makedirs(os.path.dirname(target_path), exist_ok=True)
                 with open(target_path, "wb") as f:
                     f.write(zip_ref.read(member))
-    file_path = os.path.join(dest_folder, "bin/luma" + ".exe" if os.name != "nt" else '')
+    file_path = os.path.join(dest_folder, "bin/luma" + (".exe" if os.name != "nt" else ''))
     if os.path.exists(file_path):
-        os.remove(file_path)
+        try:
+            os.remove(file_path)
+        except Exception as e:
+            print(e, file_path)
+            input()
     repo = "Erri4/PyLuma"
 
     url = f"https://api.github.com/repos/{repo}/commits/main"
@@ -61,10 +65,11 @@ def get_files():
 
     commit = data["sha"]
     jsonpth = os.path.join(dest_folder, "version.json")
-    with open(jsonpth, 'r+') as f:
+    with open(jsonpth, 'r') as f:
         version = json.load(f)
         version['commit'] = commit
-        json.dump(version, f)
+        with open(jsonpth, 'w') as w:
+            json.dump(version, w)
     if os.name == "nt":
         installer_src = os.path.join(dest_folder, "installer.exe")
         windows_dir = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"))
