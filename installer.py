@@ -88,11 +88,11 @@ def get_files():
         )
     if os.name == "nt":
         installer_src = os.path.join(dest_folder, "installer.exe")
-        subprocess.Popen(['luma', installer_src])
+        subprocess.Popen(['luma', '--aptins-internal', installer_src])
         sys.exit()
     elif os.name == "posix":
         installer_src = os.path.join(dest_folder, "installer.bin")
-        os.system(f'luma {installer_src}')
+        os.system(f'luma --aptins-internal {installer_src}')
         sys.exit()
         
 

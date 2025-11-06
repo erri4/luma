@@ -32,7 +32,7 @@ def run_installer():
     sys.exit()
 
 def apt_ins(dest_folder):
-    time.wait(1)
+    time.sleep(1)
     if os.name == "nt":
         installer_src = os.path.join(dest_folder, "installer.exe")
         windows_dir = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"))
