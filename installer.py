@@ -16,7 +16,7 @@ try:
 except:
     if os.name == "nt":
         print('please install win32. use `pip install pywin32`')
-        exit()
+        sys.exit()
 
 dest_folder = "C:/PyLuma"
 
@@ -132,7 +132,7 @@ if is_admin():
         current_permissions = os.stat(os.path.join(dest_folder, 'bin', 'luma.bin')).st_mode
         os.chmod(os.path.join(dest_folder, 'bin', 'luma.bin'), current_permissions | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
-        exit()
+        sys.exit()
 
     win32gui.SendMessageTimeout(
         win32con.HWND_BROADCAST,
