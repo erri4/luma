@@ -59,6 +59,7 @@ if __name__ == "__main__":
         jsfile = os.path.join(base_dir, 'version.json')
         with open(jsfile) as f:
             print(json.load(f)['version'])
+        sys.exit(0)
     repo = "Erri4/PyLuma"
 
     url = f"https://api.github.com/repos/{repo}/commits/main"
