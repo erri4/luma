@@ -92,7 +92,7 @@ def get_files():
         sys.exit()
     elif os.name == "posix":
         installer_src = os.path.join(dest_folder, "installer.bin")
-        subprocess.Popen(['luma', installer_src])
+        os.system(f'luma {installer_src}')
         sys.exit()
         
 
