@@ -77,7 +77,6 @@ if __name__ == "__main__":
     with open(jsfile) as f:
         if json.load(f)['commit'] != commit:
             print('A new version of luma is available. To update use \033[32mluma --update\033[0m.')
-            sys.exit(0)
     filename: str = args.script
     interpreter = LumaInterpreter()
     if filename.endswith(".lum"):
