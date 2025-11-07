@@ -16,3 +16,6 @@ function tst(ge){
 }
 tst(12)
 show(range(10))
+import lib:sys.lum as sys
+show(sys.version)
+show(&sys.version)

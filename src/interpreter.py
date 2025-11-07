@@ -12,10 +12,6 @@ TODO:
 OPTIMIZE
 compile: nuitka --follow-imports .\src\luma.py --standalone --windows-console-mode=force
 
-. import and extend vars and funcs ... holders
-
-. @pylibs
-
 . pmfl
 """
 
@@ -222,7 +218,7 @@ class LumaInterpreter:
             varname += "donottouch"
         return varname
 
-    def runimport(self, module: str, name: str):
+    def runimport(self, module: str, name: str, Object = None):
         if ":" in module:
             if getattr(sys, "frozen", False):
                 base_dir = os.path.dirname(sys.executable)
@@ -238,19 +234,22 @@ class LumaInterpreter:
                 if name is None:
                     self.runsubprogram(subprogram, infunc=False, file=module)
                 else:
-                    body = "class module {\n    constructor module (){\n        \n    }\n\n"
-                    for line in subprogram.splitlines():
-                        body += "    " + line + "\n"
-                    body += "}"
-                    self.runsubprogram(body, infunc=False, file=module)
-                    self.runsubprogram(f"set {name} to new module ()", file=module)
+                    self.env['module'] = LumaInterpreter.LumaClass('module')
+                    self.env['module'].functions['constructor'] = LumaInterpreter.LumaFunction('constructor', [], '', 0, "INTERNAL")
+                    if Object is None:
+                        Object = self.env
+                    self.runsubprogram(subprogram, infunc=False, file=module, Object=self.env['module'])
+                    Object[name] = self.env['module'].instance([])
         except FileNotFoundError:
             LumaInterpreter.throw(
                 self.env["moduleNotFoundError"],
                 f"No module named '{module}'",
             )
 
-    def runext(self, ext: str):
+    def store(self, name: str, value: EvaluatedType):
+        self.env[name] = value
+
+    def runext(self, ext: str, Object = None):
         if ":" in ext:
             if getattr(sys, "frozen", False):
                 base_dir = os.path.dirname(sys.executable)
@@ -274,7 +273,9 @@ class LumaInterpreter:
 
         if hasattr(module, "LumaExtension"):
             for name in module.LumaExtension:
-                self.env[name] = self.parse_py(module.LumaExtension[name])
+                if Object is None:
+                    Object = self
+                Object.store(name, self.parse_py(module.LumaExtension[name]))
         else:
             LumaInterpreter.throw(self.env['extensionError'], f"The extension at {ext} is not a valid extension: LumaExtension dict is not present")
 
@@ -485,10 +486,10 @@ class LumaInterpreter:
             name = None
             if LumaInterpreter.getfirstword(line[7:]) != line[7:]:
                 name = line[11 + len(LumaInterpreter.getfirstword(line[7:])) :]
-            self.runimport(module, name)
+            self.runimport(module, name, Object=getattr(Object, 'vars', self.env))
         elif firstword == "extend":
             module = LumaInterpreter.getfirstword(line[7:])
-            self.runext(module)
+            self.runext(module, Object=Object)
         elif firstword == "try":
             body = ''
             for subline in program.splitlines()[linenum:]:
@@ -1103,6 +1104,14 @@ class LumaInterpreter:
 
         def call(self, args):
             raise NotImplementedError
+        
+        def store(self, name: str, value: EvaluatedType):
+            if type(value) is LumaInterpreter.LumaClass:
+                self.classes[name] = value
+            if type(value) is LumaInterpreter.LumaFunction:
+                self.functions[name] = value
+            else:
+                self.vars[name] = value
 
         def instance(self, args: list):
             return LumaInterpreter.InstancedLumaObject(
