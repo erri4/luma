@@ -51,13 +51,17 @@ def apt_ins(dest_folder):
 
         if os.path.exists(installer_src):
             installer_dest = os.path.join(usr_local_bin, "installer.bin")
-            try:
-                shutil.copy2(installer_src, installer_dest)
-                os.chmod(installer_dest, 0o755)
-            except PermissionError:
-                print("Permission denied: could not copy installer.bin to /usr/local/bin. Run as root or use sudo.")
-            except Exception as e:
-                print(f"Failed to copy installer.bin: {e}")
+            while True:
+                try:
+                    shutil.copy2(installer_src, installer_dest)
+                    os.chmod(installer_dest, 0o755)
+                except PermissionError:
+                    print("Permission denied: could not copy installer.bin to /usr/local/bin. Run as root or use sudo.")
+                except OSError:
+                    continue
+                except Exception as e:
+                    print(f"Failed to copy installer.bin: {e}")
+                break
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
