@@ -98,14 +98,7 @@ if __name__ == "__main__":
         with open(jsfile) as f:
             print(json.load(f)['version'])
         sys.exit(0)
-    repo = "Erri4/PyLuma"
-
-    url = f"https://api.github.com/repos/{repo}/commits/main"
-
-    with urllib.request.urlopen(url) as response:
-        data = json.load(response)
-
-    commit = data["sha"]
+    
     if getattr(sys, "frozen", False):
         base_dir = os.path.dirname(sys.executable)
     else:
@@ -113,8 +106,22 @@ if __name__ == "__main__":
     base_dir = os.path.dirname(base_dir)
     jsfile = os.path.join(base_dir, 'version.json')
     with open(jsfile) as f:
-        if json.load(f)['commit'] != commit:
-            print('A new version of luma is available. To update use \033[32mluma --update\033[0m.')
+        if json.load(f)['commit'] != "IGNORE":
+            repo = "Erri4/PyLuma"
+            url = f"https://api.github.com/repos/{repo}/commits/main"
+            with urllib.request.urlopen(url) as response:
+                data = json.load(response)
+
+            commit = data["sha"]
+            if getattr(sys, "frozen", False):
+                base_dir = os.path.dirname(sys.executable)
+            else:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+            base_dir = os.path.dirname(base_dir)
+            jsfile = os.path.join(base_dir, 'version.json')
+            with open(jsfile) as f:
+                if json.load(f)['commit'] != commit:
+                    print('A new version of luma is available. To update use \033[32mluma --update\033[0m.')
     filename: str = args.script
     interpreter = LumaInterpreter()
     if filename.endswith(".lum"):

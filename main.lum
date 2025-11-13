@@ -19,3 +19,18 @@ show(range(10))
 import lib:sys.lum as sys
 show(sys.version)
 show(&sys.version)
+set lst to [1, 2, 3]
+show(lst[1])
+set lst[1] to 4
+show(lst[1])
+show(lst)
+delete lst[1]
+show(lst)
+delete lst
+set i to 0
+i++
+i++
+i++
+show(i)
+i--
+show(i)

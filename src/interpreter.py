@@ -460,6 +460,11 @@ class LumaInterpreter:
                         scope["this"].vars[varname.split(".")[1]] = value
                 elif varname.split(".")[0] in self.env.keys():
                     varis[instancename].vars[varname.split(".")[1]] = value
+            elif LumaInterpreter.is_index_call(varname):
+                splitted = LumaInterpreter.smrtsplt(varname, '[')
+                prefix = "[".join(splitted[0:-1])
+                index = self.evaluate(varname[len(prefix) + 1:-1])
+                self.evaluate(prefix).callmethod('set', [index, value])
             else:
                 if varname == "this":
                     LumaInterpreter.throw(
@@ -481,6 +486,44 @@ class LumaInterpreter:
                         f"cannot assign to '{varname}': saved keyword",
                     )
                 varis[varname] = value
+        elif firstword == "delete":
+            varname = line[7 :]
+            if varname.count(".") == 1:
+                instancename = varname.split(".")[0]
+                if instancename == "this":
+                    scope: dict[str, LumaInterpreter.InstancedLumaObject] = (
+                        self.localparams[-1]
+                    )
+                    if "this" in scope.keys():
+                        del scope["this"].vars[varname.split(".")[1]]
+                elif varname.split(".")[0] in self.env.keys():
+                    del varis[instancename].vars[varname.split(".")[1]]
+            elif LumaInterpreter.is_index_call(varname):
+                splitted = LumaInterpreter.smrtsplt(varname, '[')
+                prefix = "[".join(splitted[0:-1])
+                index = self.evaluate(varname[len(prefix) + 1:-1])
+                self.env[prefix].callmethod('delat', [index])
+            else:
+                if varname == "this":
+                    LumaInterpreter.throw(
+                        self.env["typeError"],
+                        "cannot use 'this' keyword outside class method call",
+                    )
+                if varname in self.SAVED_KEYWORDS:
+                    if varname in ['true', 'false', 'null']:
+                        if not file.endswith("builtins.lum"):
+                            LumaInterpreter.throw(
+                                self.env["typeError"],
+                                f"cannot delete '{varname}': saved keyword",
+                            )
+                        else:
+                            varis[varname] = value
+                            return
+                    LumaInterpreter.throw(
+                        self.env["typeError"],
+                        f"cannot delete '{varname}': saved keyword",
+                    )
+                del varis[varname]
         elif firstword == "import":
             module = LumaInterpreter.getfirstword(line[7:])
             name = None
@@ -978,6 +1021,36 @@ class LumaInterpreter:
                 if type(data) is LumaInterpreter.InstancedLumaObject
                 else self.env["raw"]
             )
+        elif expr.endswith('++'):
+            obj: LumaInterpreter.InstancedLumaObject = self.evaluate(expr[:-2])
+            one: LumaInterpreter.InstancedLumaObject['int'] = self.env['int'].instance([1])
+            if not '@addition' in obj.functions:
+                LumaInterpreter.throw(
+                    self.env["typeError"],
+                    f"unsupported operator: unable to perform operator ' + ' on types '{LumaInterpreter.namourtype(obj)}' and '{LumaInterpreter.namourtype(one)}'",
+                )
+            if not expr[:-2] in self.env:
+                LumaInterpreter.throw(
+                    self.env["typeError"],
+                    f"unsupported operator: unable to perform in place operator ' + ' on non-global variable {expr[:-2]}: it's non-global",
+                )
+            self.env[expr[:-2]] = obj.callmethod('@addition', [one])
+            return self.env[expr[:-2]]
+        elif expr.endswith('--'):
+            obj: LumaInterpreter.InstancedLumaObject = self.evaluate(expr[:-2])
+            one: LumaInterpreter.InstancedLumaObject['int'] = self.env['int'].instance([1])
+            if not '@subtraction' in obj.functions:
+                LumaInterpreter.throw(
+                    self.env["typeError"],
+                    f"unsupported operator: unable to perform operator ' - ' on types '{LumaInterpreter.namourtype(obj)}' and '{LumaInterpreter.namourtype(one)}'",
+                )
+            if not expr[:-2] in self.env:
+                LumaInterpreter.throw(
+                    self.env["typeError"],
+                    f"unsupported operator: unable to perform in place operator ' - ' on non-global variable {expr[:-2]}: it's non-global",
+                )
+            self.env[expr[:-2]] = obj.callmethod('@subtraction', [one])
+            return self.env[expr[:-2]]
         elif LumaInterpreter.is_obj_call(expr):
             splitted = LumaInterpreter.smrtsplt(expr, '(')
             prefix = "(".join(splitted[0:-1])
@@ -1220,6 +1293,15 @@ class LumaInterpreter:
                 "at", [{"name": "pos"}], at, 0, "INTERNAL",
             )
 
+            def del_(
+                pos, this: "LumaInterpreter.InstancedLumaObject | None" = None
+            ) -> Any:
+                del this.value[pos]
+
+            self.functions["del_"] = LumaInterpreter.LumaFunction(
+                "del_", [{"name": "pos"}], del_, 0, "INTERNAL",
+            )
+
             def dctset(
                 pos, value, this: "LumaInterpreter.InstancedLumaObject | None" = None
             ) -> None:
@@ -1227,6 +1309,15 @@ class LumaInterpreter:
 
             self.functions["set"] = LumaInterpreter.LumaFunction(
                 "set", [{"name": "pos"}, {"name": "value"}], dctset, 0, "INTERNAL",
+            )
+
+            def delat(
+                pos, this: "LumaInterpreter.InstancedLumaObject | None" = None
+            ) -> None:
+                del this.value[pos]
+
+            self.functions["delat"] = LumaInterpreter.LumaFunction(
+                "delat", [{"name": "pos"}], delat, 0, "INTERNAL",
             )
 
             def stringify(
