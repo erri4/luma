@@ -54,7 +54,7 @@ class LumaInterpreter:
     LOGICAL_OP_RE = re.compile(
         r"\s*(" + "|".join(re.escape(op) for op in LOGICAL_OPERATORS) + r")\s*"
     )
-    SAVED_KEYWORDS: list[str] = ["set", "to", "function", "constructor", "class", "null", "false", "true", "import", "if", "extend", "elseif", "else", "as", "try", "catch", "while", "stop", "again", "return", "throw"]
+    SAVED_KEYWORDS: list[str] = ["set", "to", "function", "constructor", "class", "null", "false", "true", "import", "if", "extend", "elseif", "else", "as", "try", "catch", "while", "stop", "again", "return", "throw", "delete"]
     tb: list[tuple[int, str, str]] = []
     overloads: dict[str, list[Callable]] = {}
     overrides: dict[str, list[Callable]] = {}
