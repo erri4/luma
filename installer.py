@@ -9,6 +9,7 @@ import stat
 import json
 import time
 import subprocess
+import pwd
 
 try:
     import winreg
@@ -24,7 +25,11 @@ dest_folder = "C:/PyLuma"
 if os.name == "nt":
     dest_folder = "C:/PyLuma"
 elif os.name == "posix":
-    dest_folder = os.path.expanduser("~/PyLuma")
+    sudo_user = os.environ.get("SUDO_USER")
+    if sudo_user:
+        dest_folder = os.path.join(pwd.getpwnam(sudo_user).pw_dir, 'PyLuma')
+    else:
+        dest_folder = os.path.expanduser("~/PyLuma")
 
 def get_files():
     global dest_folder
