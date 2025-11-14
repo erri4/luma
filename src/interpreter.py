@@ -450,21 +450,15 @@ class LumaInterpreter:
         elif firstword == "set":
             varname = line[4 : line.find("to") - 1]
             value = self.evaluate(line[line.find("to") + 3 :], varname)
-            if varname.count(".") == 1:
-                instancename = varname.split(".")[0]
-                if instancename == "this":
-                    scope: dict[str, LumaInterpreter.InstancedLumaObject] = (
-                        self.localparams[-1]
-                    )
-                    if "this" in scope.keys():
-                        scope["this"].vars[varname.split(".")[1]] = value
-                elif varname.split(".")[0] in self.env.keys():
-                    varis[instancename].vars[varname.split(".")[1]] = value
+            splitted = LumaInterpreter.smrtsplt(varname, '.')
+            if len(splitted) > 1:
+                instancename = '.'.join(splitted[:-1])
+                self.evaluate(instancename).vars[splitted[-1]] = value
             elif LumaInterpreter.is_index_call(varname):
                 splitted = LumaInterpreter.smrtsplt(varname, '[')
-                prefix = "[".join(splitted[0:-1])
-                index = self.evaluate(varname[len(prefix) + 1:-1])
-                self.evaluate(prefix).callmethod('set', [index, value])
+                prefix = "[".join(splitted[:-1])
+                index = self.evaluate(splitted[-1][:-1])
+                self.evaluate(prefix).callmethod('@set', [index, value])
             else:
                 if varname == "this":
                     LumaInterpreter.throw(
@@ -487,22 +481,16 @@ class LumaInterpreter:
                     )
                 varis[varname] = value
         elif firstword == "delete":
-            varname = line[7 :]
-            if varname.count(".") == 1:
-                instancename = varname.split(".")[0]
-                if instancename == "this":
-                    scope: dict[str, LumaInterpreter.InstancedLumaObject] = (
-                        self.localparams[-1]
-                    )
-                    if "this" in scope.keys():
-                        del scope["this"].vars[varname.split(".")[1]]
-                elif varname.split(".")[0] in self.env.keys():
-                    del varis[instancename].vars[varname.split(".")[1]]
+            varname = line[7:]
+            splitted = LumaInterpreter.smrtsplt(varname, '.')
+            if len(splitted) > 1:
+                instancename = '.'.join(splitted[:-1])
+                del self.evaluate(instancename).vars[splitted[-1]]
             elif LumaInterpreter.is_index_call(varname):
                 splitted = LumaInterpreter.smrtsplt(varname, '[')
-                prefix = "[".join(splitted[0:-1])
-                index = self.evaluate(varname[len(prefix) + 1:-1])
-                self.env[prefix].callmethod('delat', [index])
+                prefix = "[".join(splitted[:-1])
+                index = self.evaluate(splitted[-1][:-1])
+                self.evaluate(prefix).callmethod('@del', [index])
             else:
                 if varname == "this":
                     LumaInterpreter.throw(
@@ -510,15 +498,6 @@ class LumaInterpreter:
                         "cannot use 'this' keyword outside class method call",
                     )
                 if varname in self.SAVED_KEYWORDS:
-                    if varname in ['true', 'false', 'null']:
-                        if not file.endswith("builtins.lum"):
-                            LumaInterpreter.throw(
-                                self.env["typeError"],
-                                f"cannot delete '{varname}': saved keyword",
-                            )
-                        else:
-                            varis[varname] = value
-                            return
                     LumaInterpreter.throw(
                         self.env["typeError"],
                         f"cannot delete '{varname}': saved keyword",
@@ -1067,7 +1046,7 @@ class LumaInterpreter:
             prefix = "[".join(splitted[0:-1])
             obj: LumaInterpreter.InstancedLumaObject = self.evaluate(prefix)
             index = self.evaluate(expr[len(prefix) + 1:-1])
-            r = obj.callmethod('at', [index])
+            r = obj.callmethod('@at', [index])
             return r
         elif expr in scope.keys():
             r = scope[expr]
@@ -1140,6 +1119,7 @@ class LumaInterpreter:
             self.parents = parents
             self.functions: dict[str, LumaInterpreter.LumaFunction] = {}
             self.classes: dict[str, LumaInterpreter.LumaClass] = {}
+            self.vars: dict[str, EvaluatedType] = {}
 
             def stringify(this=None):
                 return f"<{self.typename} object>"
@@ -1289,8 +1269,8 @@ class LumaInterpreter:
             ) -> Any:
                 return this.value[pos]
 
-            self.functions["at"] = LumaInterpreter.LumaFunction(
-                "at", [{"name": "pos"}], at, 0, "INTERNAL",
+            self.functions["@at"] = LumaInterpreter.LumaFunction(
+                "@at", [{"name": "pos"}], at, 0, "INTERNAL",
             )
 
             def del_(
@@ -1307,8 +1287,8 @@ class LumaInterpreter:
             ) -> None:
                 this.value[pos] = value
 
-            self.functions["set"] = LumaInterpreter.LumaFunction(
-                "set", [{"name": "pos"}, {"name": "value"}], dctset, 0, "INTERNAL",
+            self.functions["@set"] = LumaInterpreter.LumaFunction(
+                "@set", [{"name": "pos"}, {"name": "value"}], dctset, 0, "INTERNAL",
             )
 
             def delat(
@@ -1316,8 +1296,8 @@ class LumaInterpreter:
             ) -> None:
                 del this.value[pos]
 
-            self.functions["delat"] = LumaInterpreter.LumaFunction(
-                "delat", [{"name": "pos"}], delat, 0, "INTERNAL",
+            self.functions["@del"] = LumaInterpreter.LumaFunction(
+                "@del", [{"name": "pos"}], delat, 0, "INTERNAL",
             )
 
             def stringify(
@@ -1511,8 +1491,8 @@ class LumaInterpreter:
                         interpreter.filename,
                     )
 
-            self.functions["at"] = LumaInterpreter.LumaFunction(
-                "at", [{"name": "pos"}], at, 0, "INTERNAL",
+            self.functions["@at"] = LumaInterpreter.LumaFunction(
+                "@at", [{"name": "pos"}], at, 0, "INTERNAL",
             )
 
             def stringify(
@@ -1574,7 +1554,7 @@ class LumaInterpreter:
     class InstancedLumaObject[ClassName: LiteralString]:
         def __init__(
             self,
-            varis: dict[EvaluatedType],
+            varis: dict[str, EvaluatedType],
             functions: "dict[str, LumaInterpreter.LumaFunction]",
             classes: "dict[str, LumaInterpreter.LumaClass]",
             name: ClassName,
