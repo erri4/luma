@@ -1,7 +1,5 @@
 from typing import Any, Callable, Union, LiteralString, NoReturn
 from re import Pattern
-import sys
-import os
 
 EvaluatedType = Union["LumaInterpreter.InstancedLumaObject", int, str, dict]
 
