@@ -782,7 +782,8 @@ class LumaInterpreter:
                 i += 1
                 continue
 
-            if i + 2 >= len(cond):
+            if i + 2 >= len(cond) and not (len(cond) == 2 and type(cond[0]) is not LumaInterpreter.InstancedLumaObject
+                and cond[0] == "not "):
                 break
             left, op, right = cond[i], cond[i + 1], cond[i + 2]
             val = LumaInterpreter.eval_single_condition((left, op, right))
@@ -1282,6 +1283,20 @@ class LumaInterpreter:
                 "del_", [{"name": "pos"}], del_, 0, "INTERNAL",
             )
 
+            def intify(
+                this: "LumaInterpreter.InstancedLumaObject | None" = None,
+            ) -> "LumaInterpreter.InstancedLumaObject":
+                interpreter = LumaInterpreter()
+                return interpreter.env['int'].instance([len(this.value)])
+
+            self.functions["@int"] = LumaInterpreter.LumaFunction(
+                "@int",
+                [],
+                intify,
+                0,
+                "INTERNAL",
+            )
+
             def dctset(
                 pos, value, this: "LumaInterpreter.InstancedLumaObject | None" = None
             ) -> None:
@@ -1402,6 +1417,20 @@ class LumaInterpreter:
                 "constructor", [{"name": "value"}], constructor, 0, "INTERNAL",
             )
 
+            def intify(
+                this: "LumaInterpreter.InstancedLumaObject | None" = None,
+            ) -> "LumaInterpreter.InstancedLumaObject":
+                interpreter = LumaInterpreter()
+                return interpreter.env['int'].instance([int(this.value)])
+
+            self.functions["@int"] = LumaInterpreter.LumaFunction(
+                "@int",
+                [],
+                intify,
+                0,
+                "INTERNAL",
+            )
+
             def stringify(
                 this: "LumaInterpreter.InstancedLumaObject['bool'] | None" = None,
             ) -> "LumaInterpreter.InstancedLumaObject['str']":
@@ -1472,6 +1501,20 @@ class LumaInterpreter:
 
             self.functions["@addition"] = LumaInterpreter.LumaFunction(
                 "@addition", [{"name": "other"}], add, 0, "INTERNAL",
+            )
+
+            def intify(
+                this: "LumaInterpreter.InstancedLumaObject | None" = None,
+            ) -> "LumaInterpreter.InstancedLumaObject":
+                interpreter = LumaInterpreter()
+                return interpreter.env['int'].instance([int(this.value)])
+
+            self.functions["@int"] = LumaInterpreter.LumaFunction(
+                "@int",
+                [],
+                intify,
+                0,
+                "INTERNAL",
             )
 
             def at(
@@ -1649,6 +1692,19 @@ class LumaInterpreter:
                         f"@stringify must return a string and not {r.typename}",
                     )
             return r
+        
+        def __int__(self):
+            r = self.functions["@int"].run([], self)
+            if type(r) is LumaInterpreter.InstancedLumaObject:
+                if r.typename == "int":
+                    r = r.vars['value']
+                else:
+                    interpreter = LumaInterpreter()
+                    LumaInterpreter.throw(
+                        interpreter.env["typeError"],
+                        f"@int must return an int and not {r.typename}",
+                    )
+            return r
 
         def __lbool__(self) -> "Any | LumaInterpreter.InstancedLumaObject":
             r = self.functions["@bool"].run([], self)
@@ -1688,14 +1744,6 @@ class LumaInterpreter:
         def __ge__(self, other):
             r = self.functions["@gequal"].run([other], self)
             return r
-
-        def __int__(self):
-            if self.typename == "int":
-                return self.vars["value"]
-            elif self.typename == "bool":
-                return int(self.value)
-            else:
-                return 0
 
         def __hash__(self):
             try:

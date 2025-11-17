@@ -1,10 +1,41 @@
-class inner {
-    constructor inner (){
-        set this.inner to "hi"
+extend packages:forloops.py
+
+class pair {
+    constructor pair (first = null, second = null){
+        set this.first to first
+        set this.second to second
     }
 }
 
-set test to [[new inner()]]
-show(test[0][0].inner)
-set test[0][0] to "hia"
-show(test[0][0])
+
+set n to new int(input())
+set x to new int(input())
+set a to []
+set found to false
+
+for (set i to 0, i < n, i++){
+    set a[i] to new pair()
+    set a[i].first to new int(input())
+    set a[i].second to i + 1
+}
+
+set left to 0
+set right to n - 1
+while (left < right){
+    set sum to a[left].first + a[right].first
+    if (sum == x){
+        show(new str(a[left].second) + " " + new str(a[right].second))
+        set found to true
+        stop
+    }
+    elseif (sum < x){
+        left++
+    }
+    else {
+        right--
+    }
+}
+
+if (not found == true){
+    show("IMPOSSIBLE")
+}
