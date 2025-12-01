@@ -1,21 +1,7 @@
-function main(){
-    set i to 0
-    set lst to range(10)
-    while (i < 10){
-        show(lst[i])
-        i++
-    }
-    return lst
+extend packages:forloops.py
+
+
+
+for (set i to 0, i < 10, i++){
+    show(i)
 }
-
-import lib:sys.lum as sys
-
-if (@file == "main.lum"){
-    show(main())
-    show(sys.version)
-}
-
-set lst to range(10)
-show(lst)
-lst.clear()
-show(lst)

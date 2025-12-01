@@ -20,7 +20,7 @@ EvaluatedType = Union["LumaInterpreter.InstancedLumaObject", int, str, dict]
 
 class LumaInterpreter:
     _instance = None
-    localparams: list[dict[str, EvaluatedType]] = [{}]
+    localparams: list[dict[str, Union[EvaluatedType, "LumaInterpreter.LumaClass"]]] = [{}]
     LOGICAL_OPERATORS: list[str] = [
         " == ",
         " <= ",
@@ -617,14 +617,14 @@ class LumaInterpreter:
             stops['else'] = linenu
             r = None
             ifcond = self.evaluate(condition)
-            if bool(ifcond):
+            if self.localparams[0]['bool'].instance([ifcond]):
                 r = self.runsubprogram(body, line1=linenum + 1, file=file)
             else:
                 foundelif = False
                 for i in range(len(conditions)):
                     con = conditions[i]
                     bd: str = bodys[con]
-                    if self.evaluate(con):
+                    if self.localparams[0]['bool'].instance([self.evaluate(con)]):
                         self.tb.append([stops[con], "elseif (" + con + "){", file])
                         r = self.runsubprogram(bd, line1=stops[con]+1, file=file)
                         self.tb.pop()
@@ -643,7 +643,7 @@ class LumaInterpreter:
                     break
                 body += subline + "\n"
             body = body.strip()
-            while self.evaluate(condition):
+            while self.localparams[0]['bool'].instance([self.evaluate(condition)]):
                 try:
                     self.runsubprogram(body, line1 = linenum + 1, file=file)
                 except LumaInterpreter.SubProgramExitCode as e:
@@ -802,7 +802,7 @@ class LumaInterpreter:
                     i += 1
                 else:
                     result = val
-        r = self.localparams[0]["bool"].instance([int(result)])
+        r = self.localparams[0]["bool"].instance([bool(result)])
         return r
 
     @staticmethod
@@ -1406,10 +1406,7 @@ class LumaInterpreter:
                 value: EvaluatedType,
                 this: "LumaInterpreter.InstancedLumaObject['bool'] | None" = None,
             ) -> None:
-                if (
-                    LumaInterpreter.get_oldest_parent(type(value))
-                    is LumaInterpreter.LumaClass
-                ):
+                if type(value) is LumaInterpreter.InstancedLumaObject:
                     this.value = bool(LumaInterpreter.LumaClassBool.lbool(value))
                 else:
                     this.value = bool(value)
@@ -1449,7 +1446,7 @@ class LumaInterpreter:
             def selfbool(
                 this: "LumaInterpreter.InstancedLumaObject | None" = None,
             ) -> "LumaInterpreter.InstancedLumaObject":
-                return this.value
+                return this
 
             self.functions["@bool"] = LumaInterpreter.LumaFunction(
                 "@bool",
@@ -1709,7 +1706,10 @@ class LumaInterpreter:
 
         def __lbool__(self) -> "Any | LumaInterpreter.InstancedLumaObject":
             r = self.functions["@bool"].run([], self)
-            return r
+            if type(r) is LumaInterpreter.InstancedLumaObject:
+                if r.typename == 'bool':
+                    return r.value
+            LumaInterpreter.throw(LumaInterpreter().localparams[0]['typeError'], f"@bool must return a bool and not {LumaInterpreter.namourtype(r)}")
 
         def __bool__(self):
             if self.typename == "bool":
