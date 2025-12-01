@@ -1,41 +1,21 @@
-extend packages:forloops.py
-
-class pair {
-    constructor pair (first = null, second = null){
-        set this.first to first
-        set this.second to second
+function main(){
+    set i to 0
+    set lst to range(10)
+    while (i < 10){
+        show(lst[i])
+        i++
     }
+    return lst
 }
 
+import lib:sys.lum as sys
 
-set n to new int(input())
-set x to new int(input())
-set a to []
-set found to false
-
-for (set i to 0, i < n, i++){
-    set a[i] to new pair()
-    set a[i].first to new int(input())
-    set a[i].second to i + 1
+if (@file == "main.lum"){
+    show(main())
+    show(sys.version)
 }
 
-set left to 0
-set right to n - 1
-while (left < right){
-    set sum to a[left].first + a[right].first
-    if (sum == x){
-        show(new str(a[left].second) + " " + new str(a[right].second))
-        set found to true
-        stop
-    }
-    elseif (sum < x){
-        left++
-    }
-    else {
-        right--
-    }
-}
-
-if (not found == true){
-    show("IMPOSSIBLE")
-}
+set lst to range(10)
+show(lst)
+lst.clear()
+show(lst)
