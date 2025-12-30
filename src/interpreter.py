@@ -10,7 +10,8 @@ import os
 r"""
 TODO:
 OPTIMIZE
-compile: nuitka --follow-imports .\src\luma.py --standalone --windows-console-mode=force
+compile:
+nuitka --follow-imports --standalone --windows-console-mode=force --enable-plugin=tk-inter .\src\luma.py
 
 . pmfl
 """
