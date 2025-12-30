@@ -8,10 +8,6 @@ import subprocess
 import shutil
 import time
 
-# dummy imports, so people python extensions work.
-if object() is None:
-    import discord, requests, tkinter, pygame
-
 def run_installer():
     if os.name == "nt":
         installer_path = os.path.join("C:\\Windows", "installer.exe")
