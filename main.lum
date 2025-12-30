@@ -1,7 +1,13 @@
-extend packages:forloops.py
+set TOKEN to "MTQ0NjQ2OTgzNjU2MDY2MjUzOA.GQkA71.JjoHUfe64HUxV1gfQ77dPX1N6k9OaydeZwSxBc"
 
+import "discord.lum" as discord
 
+set bot to new discord.Bot('!')
 
-for (set i to 0, i < 10, i++){
-    show(i)
+function ping(ctx){
+    ctx.send('pong')
 }
+
+bot.add_command("ping", ping)
+
+bot.run(TOKEN)

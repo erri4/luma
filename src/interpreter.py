@@ -274,11 +274,11 @@ class LumaInterpreter:
             for name in module.LumaExtension:
                 if Object is None:
                     Object = self
-                Object.store(name, self.parse_py(module.LumaExtension[name]))
+                Object.store(name, self.parse_py(module.LumaExtension[name], module.LumaExtension))
         else:
             LumaInterpreter.throw(self.localparams[0]['extensionError'], f"The extension at {ext} is not a valid extension: LumaExtension dict is not present")
 
-    def parse_py(self, token):
+    def parse_py(self, token, full: dict | None = None):
         if type(token) is dict:
             if token.get('type', None) == 'classType':
                 thecls = self.LumaClass(token['name'], [])
@@ -288,16 +288,16 @@ class LumaInterpreter:
                     thecls.vars = self.localparams[0][parent].vars.copy()
                     thecls.parents = self.localparams[0][parent].parents.copy()
                     thecls.parents.append(parent)
-                thecls.vars |= {var['name']: self.parse_py(var) for var in token['vars']}
-                thecls.functions |= {func['name']: self.parse_py(func) for func in token['functions']}
-                thecls.classes |= {cls_['name']: self.parse_py(cls_) for cls_ in token['classes']}
-                thecls.functions['constructor'] = self.parse_py(token['constructor']) if token['constructor'] else thecls.functions['constructor']
+                thecls.vars |= {var['name']: self.parse_py(var, full) for var in token['vars']}
+                thecls.functions |= {func['name']: self.parse_py(func, full) for func in token['functions']}
+                thecls.classes |= {cls_['name']: self.parse_py(cls_, full) for cls_ in token['classes']}
+                thecls.functions['constructor'] = self.parse_py(token['constructor'], full) if token['constructor'] else thecls.functions['constructor']
                 return thecls
             if token.get('type', None) == 'functionType':
                 args = token['args']
                 for arg in args:
                     try:
-                        arg['default'] = self.parse_py(arg['default'])
+                        arg['default'] = self.parse_py(arg['default'], full)
                     except KeyError: pass
                 return self.LumaFunction(token['name'], args, token['body'], 0, "EXTERNAL")
             if type(token.get('type', None)).__name__ == 'Overload':
@@ -312,14 +312,38 @@ class LumaInterpreter:
                     self.overrides[funcname] = [token['function']]
                 else:
                     self.overrides[funcname].append(token['function'])
-            if token.get('type', None) in self.localparams[0].keys():
-                if type(self.localparams[0][token.get('type', None)]) is LumaInterpreter.LumaClass or token.get('type', None) in self.PY_IMPL_CLASSES:
-                    return self.localparams[0][token['type']].instance([self.parse_py(tk) for tk in token['args']])
+            tp = None
+            for var in self.localparams[0].values():
+                if type(var) is LumaInterpreter.InstancedLumaObject:
+                    if var.typename == 'module':
+                        if token.get('type', None) in var.vars:
+                            tp = var.vars[token.get('type', None)]
+                        stack = [var.vars]
+                        while stack:
+                            for item in stack[0].values():
+                                if type(item) is LumaInterpreter.InstancedLumaObject and getattr(item, 'typename', None) == 'module':
+                                    if token.get('type', None) in item.vars:
+                                        tp = item.vars[token.get('type', None)]
+                                    stack.append(item.vars)
+                            del stack[0]
+                        if token.get('type', None) in var.functions:
+                            tp = var.functions[token.get('type', None)]
+                        if token.get('type', None) in var.classes:
+                            tp = var.classes[token.get('type', None)]
+            if full:
+                tp = self.parse_py(full.get(token.get('type', None), None), full)
+            try:
+                tp = self.evaluate(token.get('type', None))
+            except Exception: pass
+            if tp:
+                if type(tp) is LumaInterpreter.LumaClass or token.get('type', None) in self.PY_IMPL_CLASSES:
+                    r = tp.instance([self.parse_py(tk, full) for tk in token['args']])
+                    return r
         if type(token).__name__ == "Raw":
             if type(token.data).__name__ == "DictToDict":
                 newdct = {}
                 for key in token.data.keys:
-                    newdct[self.parse_py(key)] = self.parse_py(token.data[key])
+                    newdct[self.parse_py(key)] = self.parse_py(token.data[key], full)
                 return newdct
             else:
                 return token.data
@@ -505,11 +529,11 @@ class LumaInterpreter:
         elif firstword == "import":
             module = LumaInterpreter.getfirstword(line[7:])
             name = None
-            if LumaInterpreter.getfirstword(line[7:]) != line[7:]:
+            if 'as' in line:
                 name = line[11 + len(LumaInterpreter.getfirstword(line[7:])) :]
-            self.runimport(module, name, Object=getattr(Object, 'vars', self.localparams[0]))
+            self.runimport(str(self.evaluate(module)), name, Object=getattr(Object, 'vars', self.localparams[0]))
         elif firstword == "extend":
-            module = LumaInterpreter.getfirstword(line[7:])
+            module = str(self.evaluate(LumaInterpreter.getfirstword(line[7:])))
             self.runext(module, Object=Object)
         elif firstword == "try":
             body = ''
@@ -1075,6 +1099,13 @@ class LumaInterpreter:
         elif expr in self.localparams[0].keys():
             r = self.localparams[0][expr]
             return r
+        elif firstword == "new":
+            splitted = LumaInterpreter.smrtsplt(expr[4:], '(')
+            prefix = "(".join(splitted[0:-1])
+            args = self.extractargs(expr[4:].strip(), prefix)
+            cls: LumaInterpreter.LumaClass = self.evaluate(prefix)
+            instance = cls.instance(args)
+            return instance
         elif len(dotparts) > 1:
             instancename = ".".join(dotparts[0:-1])
             propertyname = dotparts[-1]
@@ -1099,13 +1130,6 @@ class LumaInterpreter:
                     self.localparams[0]["typeError"],
                     "nullType object has no attributes",
                 )
-        elif firstword == "new":
-            splitted = LumaInterpreter.smrtsplt(expr[4:], '(')
-            prefix = "(".join(splitted[0:-1])
-            args = self.extractargs(expr[4:].strip(), prefix)
-            cls: LumaInterpreter.LumaClass = self.evaluate(prefix)
-            instance = cls.instance(args)
-            return instance
         else:
             LumaInterpreter.throw(
                 self.localparams[0]["nameError"],
@@ -1195,7 +1219,7 @@ class LumaInterpreter:
             self.file = file
 
         def run(
-            self, args: list, Object=None, varsholder=None
+            self, args: list, Object: "LumaInterpreter.InstancedLumaObject" = None, varsholder=None
         ) -> "Any | LumaInterpreter.InstancedLumaObject | None ":
             interpreter = LumaInterpreter()
             if interpreter is None:
@@ -1211,10 +1235,7 @@ class LumaInterpreter:
             if type(self.body) is str:
                 r = interpreter.runsubprogram(self.body, realfunc=True, line1=self.line + 1, file=self.file)
             elif callable(self.body):
-                rargs = []
-                for key in argdict:
-                    rargs.append(argdict[key])
-                r = self.body(*rargs)
+                r = self.body(**argdict)
             added_keys = set(varsholder.keys()) - orig_vars
             for key in added_keys:
                 varsholder.pop(key, None)
@@ -1230,6 +1251,9 @@ class LumaInterpreter:
         def bind_values(self, args):
             result = {}
             value_index = 0
+            for i in range(len(args)):
+                if type(args[i]).__name__ == 'ParseMe':
+                    args[i] = LumaInterpreter().parse_py(getattr(args[i], "data"))
 
             for var in self.args:
                 name = var["name"]
@@ -1651,8 +1675,8 @@ class LumaInterpreter:
             return r
 
         def tie(self, method: str):
-            def wrapper(*args):
-                return self.functions[method].run(args, self)
+            def wrapper(**args):
+                return self.functions[method].run(list(args.values()), self)
 
             return LumaInterpreter.LumaFunction(
                 method,
@@ -1661,8 +1685,7 @@ class LumaInterpreter:
                 0,
                 "INTERNAL",
             )
-        
-        
+
 
         def callmethod(self, method: str, args: list):
             methodf: LumaInterpreter.LumaFunction = self.functions[method]
@@ -1673,10 +1696,7 @@ class LumaInterpreter:
             interpreter: LumaInterpreter | None = LumaInterpreter()
             if interpreter is None:
                 raise TypeError("Could not find an active interpreter.")
-            name = interpreter.generaterandomvarname()
-            interpreter.localparams[0][name] = self
             self.callmethod("constructor", args)
-            del interpreter.localparams[0][name]
 
         def __str__(self):
             r = self.functions["@stringify"].run([], self)
@@ -1717,6 +1737,8 @@ class LumaInterpreter:
             return bool(super())
 
         def __eq__(self, other: EvaluatedType):
+            if type(other) is not LumaInterpreter.InstancedLumaObject:
+                return False
             if self.typename in LumaInterpreter().PY_IMPL_CLASSES:
                 return self.value == other.value
             r = (
