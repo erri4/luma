@@ -217,7 +217,7 @@ class LumaInterpreter:
             varname += "donottouch"
         return varname
 
-    def runimport(self, module: str, name: str, Object = None):
+    def runimport(self, module: str, name: str, Object = None, relative: str = '.'):
         if ":" in module:
             if getattr(sys, "frozen", False):
                 base_dir = os.path.dirname(sys.executable)
@@ -227,6 +227,8 @@ class LumaInterpreter:
             module = os.path.join(
                 base_dir, module[: module.find(":")], module[module.find(":") + 1 :]
             )
+        else:
+            module = os.path.join(relative, module)
         try:
             with open(module) as imported:
                 subprogram = imported.read()
@@ -248,7 +250,7 @@ class LumaInterpreter:
     def store(self, name: str, value: EvaluatedType):
         self.localparams[0][name] = value
 
-    def runext(self, ext: str, Object = None):
+    def runext(self, ext: str, Object = None, relative: str = '.'):
         if ":" in ext:
             if getattr(sys, "frozen", False):
                 base_dir = os.path.dirname(sys.executable)
@@ -258,6 +260,8 @@ class LumaInterpreter:
             ext = os.path.join(
                 base_dir, ext[: ext.find(":")], ext[ext.find(":") + 1 :]
             )
+        else:
+            ext = os.path.join(relative, ext)
         module_name = os.path.splitext(os.path.basename(ext))[0]
         module_dir = os.path.dirname(ext)
         if module_dir not in sys.path:
@@ -531,10 +535,10 @@ class LumaInterpreter:
             name = None
             if 'as' in line:
                 name = line[11 + len(LumaInterpreter.getfirstword(line[7:])) :]
-            self.runimport(str(self.evaluate(module)), name, Object=getattr(Object, 'vars', self.localparams[0]))
+            self.runimport(str(self.evaluate(module)), name, Object=getattr(Object, 'vars', self.localparams[0]), relative=(os.path.dirname(file) if file else '.'))
         elif firstword == "extend":
             module = str(self.evaluate(LumaInterpreter.getfirstword(line[7:])))
-            self.runext(module, Object=Object)
+            self.runext(module, Object=Object, relative=(os.path.dirname(file) if file else '.'))
         elif firstword == "try":
             body = ''
             for subline in program.splitlines()[linenum:]:
