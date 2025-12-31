@@ -11,7 +11,7 @@ r"""
 TODO:
 OPTIMIZE
 compile:
-nuitka --follow-imports --standalone --windows-console-mode=force --enable-plugin=tk-inter .\src\luma.py
+nuitka --follow-imports --standalone --windows-console-mode=force --enable-plugin=tk-inter --include-package=discord --include-package=requests --include-package=tkinter .\src\luma.py
 
 . pmfl
 """
