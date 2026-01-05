@@ -294,9 +294,17 @@ class LumaInterpreter:
                     thecls.parents = self.env[0][parent].parents.copy()
                     thecls.parents.append(parent)
                 thecls.vars |= {var['name']: self.parse_py(var, full) for var in token['vars']}
-                thecls.functions |= {func['name']: self.parse_py(func, full) for func in token['functions']}
+                for func in token['functions']:
+                    f = self.parse_py(func, full)
+                    if not 'this' in (arg['name'] for arg in f.args):
+                        f.args.insert(0, {'name': 'this'})
+                    thecls.functions |= {f.actualname: f}
                 thecls.classes |= {cls_['name']: self.parse_py(cls_, full) for cls_ in token['classes']}
-                thecls.functions['constructor'] = self.parse_py(token['constructor'], full) if token['constructor'] else thecls.functions['constructor']
+                constructor = self.parse_py(token['constructor'], full)
+                if type(constructor) is LumaInterpreter.LumaFunction:
+                    if not 'this' in (arg['name'] for arg in constructor.args):
+                        constructor.args.insert(0, {'name': 'this'})
+                thecls.functions['constructor'] = constructor if token['constructor'] else thecls.functions['constructor']
                 return thecls
             if token.get('type', None) == 'functionType':
                 args = token['args']
@@ -428,7 +436,7 @@ class LumaInterpreter:
             body = body.strip()
             if line[-1] == '}':
                 body = ''
-            functions[func_name] = self.LumaFunction(func_name, args, body, linenum+1, file)
+            functions[func_name] = self.LumaFunction(func_name, args + ([{"name": "this"}] if Object is not LumaInterpreter() else []), body, linenum+1, file)
         elif firstword == "throw":
             exc: LumaInterpreter.InstancedLumaObject = self.evaluate(line[6:])
             exc.callmethod('trigger', [])
@@ -470,7 +478,7 @@ class LumaInterpreter:
                 body = ''
             functions["constructor"] = self.LumaFunction(
                 "constructor",
-                args,
+                args+[{"name": "this"}],
                 body,
                 linenum+1,
                 file
@@ -1229,18 +1237,27 @@ class LumaInterpreter:
             interpreter = LumaInterpreter()
             if interpreter is None:
                 raise TypeError("Could not find an active interpreter.")
-            argdict = self.bind_values(args)
+            argdict = self.bind_values(args, Object)
             if varsholder is None:
                 varsholder = interpreter.env[0]
             if Object is not None:
-                argdict["this"] = Object
+                tmp = False
+                for arg in self.args:
+                    if arg['name'] == 'this':
+                        tmp = True
+                if tmp:
+                    argdict["this"] = Object
+                del tmp
             interpreter.env.append(argdict)
             orig_vars = set(varsholder.keys())
             r = None
             if type(self.body) is str:
                 r = interpreter.runsubprogram(self.body, realfunc=True, line1=self.line + 1, file=self.file)
             elif callable(self.body):
-                r = self.body(**argdict)
+                if argdict:
+                    r = self.body(**argdict)
+                else:
+                    r = self.body()
             added_keys = set(varsholder.keys()) - orig_vars
             for key in added_keys:
                 varsholder.pop(key, None)
@@ -1253,7 +1270,11 @@ class LumaInterpreter:
         def __repr__(self):
             return f"<functionType object named {self.actualname}>"
 
-        def bind_values(self, args):
+        def bind_values(self, args, Object):
+            thisval = 0
+            for arg in self.args:
+                if arg['name'] == 'this':
+                    thisval = 1
             result = {}
             value_index = 0
             for i in range(len(args)):
@@ -1262,6 +1283,7 @@ class LumaInterpreter:
 
             for var in self.args:
                 name = var["name"]
+                if name == 'this': continue
 
                 if value_index < len(args):
                     result[name] = args[value_index]
@@ -1274,7 +1296,7 @@ class LumaInterpreter:
                         f"function '{self.actualname}' expected {len(self.args)} arguments but got {len(args)}",
                     )
 
-            if value_index < len(args):
+            if value_index < len(args) - thisval and (not thisval or (thisval and Object)):
                 LumaInterpreter.throw(
                     LumaInterpreter().env[0]["typeError"],
                     f"function '{self.actualname}' expected {len(self.args)} arguments but got {len(args)}",
@@ -1292,7 +1314,7 @@ class LumaInterpreter:
                 this.value = value.copy()
 
             self.functions["constructor"] = LumaInterpreter.LumaFunction(
-                "constructor", [{"name": "value"}], constructor, 0, "INTERNAL",
+                "constructor", [{"name": "this"}, {"name": "value"}], constructor, 0, "INTERNAL",
             )
 
             def at(
@@ -1301,7 +1323,7 @@ class LumaInterpreter:
                 return this.value[pos]
 
             self.functions["@at"] = LumaInterpreter.LumaFunction(
-                "@at", [{"name": "pos"}], at, 0, "INTERNAL",
+                "@at", [{"name": "this"}, {"name": "pos"}], at, 0, "INTERNAL",
             )
 
             def del_(
@@ -1310,7 +1332,7 @@ class LumaInterpreter:
                 del this.value[pos]
 
             self.functions["del_"] = LumaInterpreter.LumaFunction(
-                "del_", [{"name": "pos"}], del_, 0, "INTERNAL",
+                "del_", [{"name": "this"}, {"name": "pos"}], del_, 0, "INTERNAL",
             )
 
             def intify(
@@ -1321,7 +1343,7 @@ class LumaInterpreter:
 
             self.functions["@int"] = LumaInterpreter.LumaFunction(
                 "@int",
-                [],
+                [{"name": "this"}, ],
                 intify,
                 0,
                 "INTERNAL",
@@ -1333,7 +1355,7 @@ class LumaInterpreter:
                 this.value[pos] = value
 
             self.functions["@set"] = LumaInterpreter.LumaFunction(
-                "@set", [{"name": "pos"}, {"name": "value"}], dctset, 0, "INTERNAL",
+                "@set", [{"name": "this"}, {"name": "pos"}, {"name": "value"}], dctset, 0, "INTERNAL",
             )
 
             def delat(
@@ -1342,7 +1364,7 @@ class LumaInterpreter:
                 del this.value[pos]
 
             self.functions["@del"] = LumaInterpreter.LumaFunction(
-                "@del", [{"name": "pos"}], delat, 0, "INTERNAL",
+                "@del", [{"name": "this"}, {"name": "pos"}], delat, 0, "INTERNAL",
             )
 
             def stringify(
@@ -1366,7 +1388,7 @@ class LumaInterpreter:
 
             self.functions["@stringify"] = LumaInterpreter.LumaFunction(
                 "@stringify",
-                [],
+                [{"name": "this"}, ],
                 stringify,
                 0,
                 "INTERNAL",
@@ -1393,7 +1415,7 @@ class LumaInterpreter:
 
             self.functions["@repr"] = LumaInterpreter.LumaFunction(
                 "@repr",
-                [],
+                [{"name": "this"}, ],
                 repre,
                 0,
                 "INTERNAL",
@@ -1408,7 +1430,7 @@ class LumaInterpreter:
 
             self.functions["len"] = LumaInterpreter.LumaFunction(
                 "len",
-                [],
+                [{"name": "this"}, ],
                 length,
                 0,
                 "INTERNAL",
@@ -1421,7 +1443,7 @@ class LumaInterpreter:
 
             self.functions["@bool"] = LumaInterpreter.LumaFunction(
                 "@bool",
-                [],
+                [{"name": "this"}, ],
                 lbool,
                 0,
                 "INTERNAL",
@@ -1441,7 +1463,7 @@ class LumaInterpreter:
                     this.value = bool(value)
 
             self.functions["constructor"] = LumaInterpreter.LumaFunction(
-                "constructor", [{"name": "value"}], constructor, 0, "INTERNAL",
+                "constructor", [{"name": "this"}, {"name": "value"}], constructor, 0, "INTERNAL",
             )
 
             def intify(
@@ -1452,7 +1474,7 @@ class LumaInterpreter:
 
             self.functions["@int"] = LumaInterpreter.LumaFunction(
                 "@int",
-                [],
+                [{"name": "this"}, ],
                 intify,
                 0,
                 "INTERNAL",
@@ -1466,7 +1488,7 @@ class LumaInterpreter:
 
             self.functions["@stringify"] = LumaInterpreter.LumaFunction(
                 "@stringify",
-                [],
+                [{"name": "this"}, ],
                 stringify,
                 0,
                 "INTERNAL",
@@ -1479,7 +1501,7 @@ class LumaInterpreter:
 
             self.functions["@bool"] = LumaInterpreter.LumaFunction(
                 "@bool",
-                [],
+                [{"name": "this"}, ],
                 selfbool,
                 0,
                 "INTERNAL",
@@ -1493,7 +1515,7 @@ class LumaInterpreter:
 
             self.functions["@repr"] = LumaInterpreter.LumaFunction(
                 "@repr",
-                [],
+                [{"name": "this"}, ],
                 repre,
                 0,
                 "INTERNAL",
@@ -1519,7 +1541,7 @@ class LumaInterpreter:
                 this.value = str(value)
 
             self.functions["constructor"] = LumaInterpreter.LumaFunction(
-                "constructor", [{"name": "value"}], constructor, 0, "INTERNAL",
+                "constructor", [{"name": "this"}, {"name": "value"}], constructor, 0, "INTERNAL",
             )
 
             def add(other, this: "LumaInterpreter.InstancedLumaObject | None" = None):
@@ -1527,7 +1549,7 @@ class LumaInterpreter:
                 return interpreter.env[0]["str"].instance([this.value + str(other)])
 
             self.functions["@addition"] = LumaInterpreter.LumaFunction(
-                "@addition", [{"name": "other"}], add, 0, "INTERNAL",
+                "@addition", [{"name": "this"}, {"name": "other"}], add, 0, "INTERNAL",
             )
 
             def intify(
@@ -1538,7 +1560,7 @@ class LumaInterpreter:
 
             self.functions["@int"] = LumaInterpreter.LumaFunction(
                 "@int",
-                [],
+                [{"name": "this"},],
                 intify,
                 0,
                 "INTERNAL",
@@ -1562,7 +1584,7 @@ class LumaInterpreter:
                     )
 
             self.functions["@at"] = LumaInterpreter.LumaFunction(
-                "@at", [{"name": "pos"}], at, 0, "INTERNAL",
+                "@at", [{"name": "this"}, {"name": "pos"}], at, 0, "INTERNAL",
             )
 
             def stringify(
@@ -1572,7 +1594,7 @@ class LumaInterpreter:
 
             self.functions["@stringify"] = LumaInterpreter.LumaFunction(
                 "@stringify",
-                [],
+                [{"name": "this"}, ],
                 stringify,
                 0,
                 "INTERNAL",
@@ -1593,7 +1615,7 @@ class LumaInterpreter:
 
             self.functions["@repr"] = LumaInterpreter.LumaFunction(
                 "@repr",
-                [],
+                [{"name": "this"}, ],
                 repre,
                 0,
                 "INTERNAL",
@@ -1604,7 +1626,7 @@ class LumaInterpreter:
 
             self.functions["len"] = LumaInterpreter.LumaFunction(
                 "len",
-                [],
+                [{"name": "this"}, ],
                 length,
                 0,
                 "INTERNAL",
@@ -1615,7 +1637,7 @@ class LumaInterpreter:
 
             self.functions["@bool"] = LumaInterpreter.LumaFunction(
                 "@bool",
-                [],
+                [{"name": "this"}, ],
                 lbool,
                 0,
                 "INTERNAL",

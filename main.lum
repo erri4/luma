@@ -1,11 +1,14 @@
 set TOKEN to "MTQ0NjQ2OTgzNjU2MDY2MjUzOA.GQkA71.JjoHUfe64HUxV1gfQ77dPX1N6k9OaydeZwSxBc"
 
 import "packages:discord.lum" as discord
+import "lib:sys.lum" as sys
 
 set bot to new discord.Bot('!')
 
 function ping(ctx){
     ctx.send('pong')
+    ctx.send('red stop {self destruct}')
+    sys.exit()
 }
 
 bot.add_command("ping", ping)
