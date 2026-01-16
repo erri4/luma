@@ -209,14 +209,10 @@ class LumaInterpreter:
                 spacenum = len(line) - len(line.lstrip())
                 lines[i] = line[: line.find("; ")]
                 lines.insert(i + 1, " " * spacenum + line[line.find("; ") + 2 :])
+            if line.endswith(';'):
+                lines[i] = line[:-1]
             i += 1
         return "\n".join(lines)
-
-    def generaterandomvarname(self):
-        varname = "@tmpsysvar"
-        while varname in self.env[0].keys():
-            varname += "donottouch"
-        return varname
 
     def runimport(self, module: str, name: str, Object = None, relative: str = '.'):
         if ":" in module:
@@ -485,7 +481,7 @@ class LumaInterpreter:
             )
         elif firstword == "set":
             varname = line[4 : line.find("to") - 1]
-            value = self.evaluate(line[line.find("to") + 3 :], varname)
+            value = self.evaluate(line[line.find("to") + 3 :])
             splitted = LumaInterpreter.smrtsplt(varname, '.')
             if len(splitted) > 1:
                 instancename = '.'.join(splitted[:-1])
@@ -974,10 +970,8 @@ class LumaInterpreter:
         return True
 
     def evaluate(
-        self, expr: str, evalforwhat: str | None = None, line: int = 0
+        self, expr: str, line: int = 0
     ):
-        if not evalforwhat:
-            evalforwhat = self.generaterandomvarname()
         firstword = LumaInterpreter.getfirstword(expr.strip())
 
         expr = expr.strip()

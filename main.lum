@@ -8,7 +8,7 @@ set bot to new discord.Bot('!')
 function ping(ctx){
     ctx.send('pong')
     ctx.send('red stop {self destruct}')
-    sys.exit()
+    bot.exit()
 }
 
 bot.add_command("ping", ping)
