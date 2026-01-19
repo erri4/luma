@@ -1,0 +1,53 @@
+{
+  "scopeName": "source.luma",
+  "patterns": [
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#comments" }
+  ],
+  "repository": {
+    "keywords": {
+      "patterns": [{
+        "name": "keyword.control.luma",
+        "match": "\\b(set|to|function|constructor|class|import|if|extend|elseif|else|as|try|catch|while|stop|again|return|throw|delete|new)\\b"
+      }]
+    },
+    "types": {
+      "patterns": [{
+        "name": "storage.type.luma",
+        "match": "\\b(this|true|false|null)\\b"
+      }]
+    },
+    "strings": {
+      "patterns": [{
+        "name": "string.quoted.double.luma",
+        "begin": "\"",
+        "end": "\""
+      },
+    {
+        "name": "string.quoted.single.luma",
+        "begin": "'",
+        "end": "'"
+      }]
+    },
+    "numbers": {
+      "patterns": [{
+        "name": "constant.numeric.luma",
+        "match": "\\b\\d+(\\.\\d+)?\\b"
+      }]
+    },
+    "comments": {
+      "patterns": [{
+      "name": "comment.line.double-slash.mylang",
+      "match": "//.*$"
+    },
+    {
+      "name": "comment.block.mylang",
+      "begin": "/\\*",
+      "end": "\\*/"
+    }]
+    }
+  }
+}

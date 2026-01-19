@@ -1,0 +1,26 @@
+{
+  "name": "luma",
+  "displayName": "luma",
+  "description": "luma language support",
+  "version": "0.1.0",
+  "icon": "luma.png",
+  "publisher": "RedstoneCoreDev",
+  "engines": { "vscode": "^1.70.0" },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [{
+      "id": "luma",
+      "aliases": ["luma"],
+      "extensions": [".lum"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "luma",
+      "scopeName": "source.luma",
+      "path": "./syntaxes/luma.tmLanguage.json"
+    }],
+    "taskDefinitions": [{
+      "type": "luma"
+    }]
+  }
+}

@@ -10,10 +10,17 @@ import os
 r"""
 TODO:
 OPTIMIZE
-compile:
-nuitka --follow-imports --standalone --windows-console-mode=force --enable-plugin=tk-inter --include-package=discord --include-package=requests --include-package=tkinter .\src\luma.py
+
+. make comments work properly
+line of code //comment
+line of code /*
+commanet*/
+line /* of */ code
 
 . pmfl
+
+compile:
+nuitka --follow-imports --standalone --windows-console-mode=force --enable-plugin=tk-inter --include-package=discord --include-package=requests --include-package=tkinter .\src\luma.py
 """
 
 EvaluatedType = Union["LumaInterpreter.InstancedLumaObject", int, str, dict]
@@ -54,7 +61,7 @@ class LumaInterpreter:
     LOGICAL_OP_RE = re.compile(
         r"\s*(" + "|".join(re.escape(op) for op in LOGICAL_OPERATORS) + r")\s*"
     )
-    SAVED_KEYWORDS: list[str] = ["set", "to", "function", "constructor", "class", "null", "false", "true", "import", "if", "extend", "elseif", "else", "as", "try", "catch", "while", "stop", "again", "return", "throw", "delete"]
+    SAVED_KEYWORDS: list[str] = ["set", "to", "function", "constructor", "class", "null", "false", "true", "import", "if", "extend", "elseif", "else", "as", "try", "catch", "while", "stop", "again", "return", "throw", "delete", "new"]
     tb: list[tuple[int, str, str]] = []
     overloads: dict[str, list[Callable]] = {}
     overrides: dict[str, list[Callable]] = {}
