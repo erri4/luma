@@ -12,8 +12,19 @@
       "id": "luma",
       "aliases": ["luma"],
       "extensions": [".lum"],
-      "configuration": "./language-configuration.json"
+      "configuration": "./language-configuration.json",
+      "icon": {
+        "light": "./icons/luma.png",
+        "dark": "./icons/luma.png"
+      }
     }],
+    "iconThemes": [
+      {
+        "id": "luma-icons",
+        "label": "Luma File Icons",
+        "path": "./file-icon-theme.json"
+      }
+    ],
     "grammars": [{
       "language": "luma",
       "scopeName": "source.luma",
