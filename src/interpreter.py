@@ -10,12 +10,7 @@ import os
 r"""
 TODO:
 OPTIMIZE
-
-. make comments work properly
-line of code //comment
-line of code /*
-commanet*/
-line /* of */ code
+. add luma to https://github.com/calebephrem/hello-world-in-all-languages
 
 . pmfl
 
@@ -112,19 +107,19 @@ class LumaInterpreter:
             setattr(this, 'tb', LumaInterpreter().traceback())
 
         BaseError.functions["constructor"] = LumaInterpreter.LumaFunction(
-            "constructor", [{"name": "msg", "default": self.env[0]['str'].instance([""])}], constructor, 0, "INTERNAL",
+            "constructor", [{"name": "this"}, {"name": "msg", "default": self.env[0]['str'].instance([""])}], constructor, 0, "INTERNAL",
         )
         def trigger(this=None):
             raise LumaInterpreter.LumaException(this)
 
         BaseError.functions["trigger"] = LumaInterpreter.LumaFunction(
-            "trigger", [], trigger, 0, "INTERNAL",
+            "trigger", [{"name": "this"}], trigger, 0, "INTERNAL",
         )
         def stringify(this=None):
             return getattr(this, 'msg')
 
         BaseError.functions["@stringify"] = LumaInterpreter.LumaFunction(
-            "@stringify", [], stringify, 0, "INTERNAL",
+            "@stringify", [{"name": "this"}], stringify, 0, "INTERNAL",
         )
         self.env[0]["baseError"] = BaseError
 
@@ -195,18 +190,25 @@ class LumaInterpreter:
         i = 0
         while i < len(lines):
             line = lines[i]
-            if line.strip().startswith("/*"):
-                c = i
-                while not lines[c].strip().endswith("*/"):
-                    del lines[c]
-                del lines[c]
+            if '/*' in line and '*/' in line:
+                lines[i] = line[:line.find('/*')] + line[line.find('*/')+2:]
+                continue
+            if '/*' in line:
+                lines[i] = line[:line.find('/*')]
+                c = i + 1
+                while True:
+                    if '*/' in lines[c]:
+                        break
+                    else:
+                        del lines[c]
+                lines[c] = lines[c][lines[c].find('*/')+2:]
                 continue
             i += 1
         i = 0
         while i < len(lines):
             line = lines[i]
-            if line.strip().startswith("//"):
-                del lines[i]
+            if '//' in line:
+                lines[i] = line[:line.find('//')]
                 continue
             i += 1
         i = 0
@@ -487,8 +489,8 @@ class LumaInterpreter:
                 file
             )
         elif firstword == "set":
-            varname = line[4 : line.find("to") - 1]
-            value = self.evaluate(line[line.find("to") + 3 :])
+            varname = line[4 : line.find("to ") - 1]
+            value = self.evaluate(line[line.find("to ") + 3 :])
             splitted = LumaInterpreter.smrtsplt(varname, '.')
             if len(splitted) > 1:
                 instancename = '.'.join(splitted[:-1])
@@ -610,8 +612,9 @@ class LumaInterpreter:
             condition = line[4 : line.find("){")]
             body = ''
             for subline in program.splitlines()[linenum:].copy():
-                if subline[0] == '}':
-                    break
+                if subline:
+                    if subline[0] == '}':
+                        break
                 body += subline + "\n"
             body = body.strip()
             conditions = []
@@ -679,8 +682,9 @@ class LumaInterpreter:
             condition = line[7 : line.find("){")]
             body = ''
             for subline in program.splitlines()[linenum:]:
-                if subline[0] == '}':
-                    break
+                if subline != '':
+                    if subline[0] == '}':
+                        break
                 body += subline + "\n"
             body = body.strip()
             while self.env[0]['bool'].instance([self.evaluate(condition)]):
@@ -713,7 +717,7 @@ class LumaInterpreter:
         ):
             pass
         else:
-            self.evaluate(line, line=linenum)
+            self.evaluate(line)
 
     @staticmethod
     def throw(
@@ -763,20 +767,13 @@ class LumaInterpreter:
                     tokens.append(expr.strip())
                 break
         return tokens
-    
-    @staticmethod
-    def removebracket(string: str):
-        if string:
-            if string[0] == '(':
-                return string[1:]
-        return string
 
     def extractargs(self, line: str, funcname):
-        rawargs = LumaInterpreter.removebracket(line[len(funcname) + 1 : -1].strip())
+        rawargs = line[len(funcname) + 1 : -1].strip()
         if rawargs == "":
             return []
-        splitted = LumaInterpreter.smrtsplt(rawargs, ", ")
-        return [self.evaluate(arg) for arg in splitted]
+        splitted = LumaInterpreter.smrtsplt(rawargs, ",")
+        return [self.evaluate(arg.strip()) for arg in splitted]
 
     @staticmethod
     def termisclosed(term):
@@ -977,7 +974,7 @@ class LumaInterpreter:
         return True
 
     def evaluate(
-        self, expr: str, line: int = 0
+        self, expr: str
     ):
         firstword = LumaInterpreter.getfirstword(expr.strip())
 
@@ -996,11 +993,11 @@ class LumaInterpreter:
             return r
 
         for op in self.OPERATORS:
-            op_token = f" {op} "
+            op_token = f"{op}"
             if op_token not in expr:
                 continue
             splitted = LumaInterpreter.smrtsplt(expr, op_token)
-            if op_token in expr and len(splitted) > 1:
+            if op_token in expr and len(splitted) > 1 and '' not in splitted:
                 terms = splitted
                 term0 = self.evaluate(op_token.join(terms[:-1]))
                 if type(term0) is LumaInterpreter.InstancedLumaObject:
@@ -1028,7 +1025,6 @@ class LumaInterpreter:
                         self.env[0]["typeError"],
                         f"unsupported operator: unable to perform operator {op} on types '{LumaInterpreter.namourtype(self.evaluate(f'{terms[0]}'))}' and '{LumaInterpreter.namourtype(self.evaluate(f'{op_token.join(terms[1:])}'))}'",
                     )
-        
         if expr[0] == "&":
             data: LumaInterpreter.LumaClass = self.evaluate(expr[1:])
             if type(data) is LumaInterpreter.LumaClass:
@@ -1038,6 +1034,15 @@ class LumaInterpreter:
                 if type(data) is LumaInterpreter.InstancedLumaObject
                 else self.env[0]["raw"]
             )
+        elif expr[0] == "-":
+            obj: LumaInterpreter.InstancedLumaObject = self.evaluate(expr[1:])
+            zero: LumaInterpreter.InstancedLumaObject['int'] = self.env[0]['int'].instance([0])
+            if not '@subtraction' in obj.functions:
+                LumaInterpreter.throw(
+                    self.env[0]["typeError"],
+                    f"unsupported operator: unable to perform operator '-' on types '{LumaInterpreter.namourtype(obj)}' and '{LumaInterpreter.namourtype(zero)}'",
+                )
+            return zero.callmethod('@subtraction', [obj])
         elif expr.endswith('++'):
             obj: LumaInterpreter.InstancedLumaObject = self.evaluate(expr[:-2])
             one: LumaInterpreter.InstancedLumaObject['int'] = self.env[0]['int'].instance([1])
