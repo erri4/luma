@@ -82,9 +82,6 @@ if __name__ == "__main__":
     if not (args.update or args.version) and not args.script:
         parser.error("the following arguments are required: script (unless --update or --version is specified)")
 
-    if args.update:
-        run_installer()
-
     if args.aptins_internal:
         apt_ins(args.aptins_internal)
 
@@ -121,7 +118,13 @@ if __name__ == "__main__":
             jsfile = os.path.join(base_dir, 'version.json')
             with open(jsfile) as f:
                 if json.load(f)['commit'] != commit:
-                    print('A new version of luma is available. To update use \033[32mluma --update\033[0m.')
+                    if args.update:
+                        run_installer()
+                    else:
+                        print('A new version of luma is available. To update use \033[32mluma --update\033[0m.')
+                else:
+                    if args.update:
+                        print("No now version was found. Interpreter wasn't updated.")
     filename: str = args.script
     interpreter = LumaInterpreter()
     if filename.endswith(".lum"):
