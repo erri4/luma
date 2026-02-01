@@ -62,6 +62,31 @@ def apt_ins(dest_folder):
                 except Exception as e:
                     print(f"Failed to copy installer.bin: {e}")
                 break
+    if getattr(sys, "frozen", False):
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+    base_dir = os.path.dirname(base_dir)
+    jsfile = os.path.join(base_dir, 'version.json')
+    with open(jsfile) as f:
+        if json.load(f)['commit'] != "IGNORE":
+            repo = "Erri4/PyLuma"
+            url = f"https://api.github.com/repos/{repo}/commits/main"
+            with urllib.request.urlopen(url) as response:
+                data = json.load(response)
+
+            commit = data["sha"]
+            if getattr(sys, "frozen", False):
+                base_dir = os.path.dirname(sys.executable)
+            else:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+            base_dir = os.path.dirname(base_dir)
+            jsfile = os.path.join(base_dir, 'version.json')
+            with open(jsfile, 'w+') as f:
+                data = json.load(f)
+                data["commit"] = commit
+                json.dump(data)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
