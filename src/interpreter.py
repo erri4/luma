@@ -70,7 +70,7 @@ class LumaInterpreter:
 
     def run(self, program: str, filename: str):
         def nativecode(
-            pytext: str, kwargs: LumaInterpreter.InstancedLumaObject | None = None
+            pytext: LumaInterpreter.InstancedLumaObject['str'], kwargs: LumaInterpreter.InstancedLumaObject | None = None
         ):
             sys.path.append(r"C:\PyLuma")
             sys.path.append(os.path.expanduser('~/PyLuma'))
@@ -80,7 +80,7 @@ class LumaInterpreter:
             )
             for key in list(data.keys()):
                 data[str(key)] = data[key]
-            r = eval(str(pytext), globs | data)
+            r = eval(str(pytext).replace('\n', '\\n'), globs | data)
             return r
 
         self.env[0]["nativecode"] = self.LumaFunction(
@@ -446,7 +446,7 @@ class LumaInterpreter:
             exc: LumaInterpreter.InstancedLumaObject = self.evaluate(line[6:])
             exc.callmethod('trigger', [])
         elif firstword == "class":
-            class_name = line[6 : line.find(" {")]
+            class_name = line[6 : line.find("{")].strip()
             body = ''
             for subline in program.splitlines()[linenum:]:
                 if (subline + " ")[0] == '}':
@@ -461,7 +461,7 @@ class LumaInterpreter:
             )
             if "(" in class_name and ")" in class_name:
                 parent = class_name[class_name.find("(") + 1 : class_name.find(")")]
-                class_name = class_name[: class_name.find("(") - 1]
+                class_name = class_name[: class_name.find("(")].strip()
                 classes[class_name] = self.LumaClass(
                     class_name,
                 )
@@ -471,8 +471,8 @@ class LumaInterpreter:
                 classes[class_name].parents.append(parent)
             self.runsubprogram(body, classes[class_name], line1=linenum+1, file=file)
         elif firstword == "constructor":
-            class_name = line[12 : line.find(" (")]
-            args = self.parse_args(line[line.find(" (") + 2 : line.rfind(")")])
+            class_name = line[12 : line.find("(")].strip()
+            args = self.parse_args(line[line.find("(") + 1 : line.rfind(")")])
             body = ''
             for subline in program.splitlines()[linenum:]:
                 if (subline + " ")[0] == '}':

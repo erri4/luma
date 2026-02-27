@@ -1,2 +1,8 @@
-show(-1 /*inline comment */)
-show(input("hello! what your name: "))
+import "lib:files.lum"
+set file to new File("test.py")
+show(file.read())
+file.write("print('Hello, worldagasgasgagsasg')")
+show(file.read())
+file.writeln("print('helloasfoasfpn')")
+show(file.read())
+show("hello\nworld")
