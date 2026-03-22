@@ -1,8 +1,1 @@
-import "lib:files.lum"
-set file to new File("test.py")
-show(file.read())
-file.write("print('Hello, worldagasgasgagsasg')")
-show(file.read())
-file.writeln("print('helloasfoasfpn')")
-show(file.read())
-show("hello\nworld")
+show("Hello, World!")
