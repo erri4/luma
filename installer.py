@@ -42,7 +42,10 @@ def get_files():
     url = "https://github.com/Erri4/PyLuma/archive/refs/heads/main.zip"
     try:
         if os.path.exists(dest_folder):
-            shutil.rmtree(dest_folder, onexc=remove_readonly)
+            if os.name == 'nt':
+                shutil.rmtree(dest_folder, onexc=remove_readonly)
+            elif os.name == "posix":
+                shutil.rmtree(dest_folder)
         os.makedirs(dest_folder)
     except Exception as e:
         print(e)

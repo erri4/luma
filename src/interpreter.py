@@ -10,8 +10,6 @@ import os
 r"""
 TODO:
 OPTIMIZE
-. add luma to https://github.com/calebephrem/hello-world-in-all-languages
-
 . pmfl
 
 compile:
@@ -36,20 +34,32 @@ class LumaInterpreter:
         " or ",
     ]
     OPERATORS: dict[str, str] = {
-        "-": "@subtraction",
-        "+": "@addition",
-        "/": "@division",
-        "*": "@multiplication",
-        "+=": "@addition",
-        "-=": "@subtraction",
-        "*=": "@multiplication",
-        "/=": "@division",
+        "-": "@subtraction", #
+        "+": "@addition", #
+        "/": "@division", #
+        "*": "@multiplication", #
+        "%": "@modulus", #
+        "%=": "@modulus", #
+        "+=": "@addition", #
+        "-=": "@subtraction", #
+        "*=": "@multiplication", #
+        "/=": "@division", #
+        "**": "@power", #
+        "**=": "@power", #
+        ">>": "@shift_r",
+        ">>=": "@shift_r",
+        "<<": "@shift_l",
+        "<<=": "@shift_l",
     }
     REAL_OPERATORS: dict[str, Callable] = {
         "-": operator.sub,
         "+": operator.add,
         "/": operator.truediv,
         "*": operator.mul,
+        "%": operator.mod,
+        "**": operator.pow,
+        ">>": operator.rshift,
+        "<<": operator.lshift,
     }
     PY_IMPL_CLASSES = ["bool", "dict", "str"]
     NUMBER_RE = re.compile(r"^[+-]?\d+(\.\d+)?$")
@@ -126,10 +136,11 @@ class LumaInterpreter:
         self.filename = filename
         self.scopes.append(program)
         self.runimport(":builtins.lum", None)
-        try:
+        '''try:
             self.runsubprogram(program, infunc=False, file=self.filename)
         except LumaInterpreter.LumaException as e:
-            print(e)
+            print(e)'''
+        self.runsubprogram(program, infunc=False, file=self.filename)
 
     @staticmethod
     def getfirstword(line: str):
@@ -1002,7 +1013,7 @@ class LumaInterpreter:
                 term0 = self.evaluate(op_token.join(terms[:-1]))
                 if type(term0) is LumaInterpreter.InstancedLumaObject:
                     if self.OPERATORS[op] in term0.functions:
-                        if op in ['+=', '/=', '-=', '*=']:
+                        if op in ['+=', '/=', '-=', '*=', '**=', '%=', '>>=', '<<=']:
                             if op_token.join(terms[:-1]) in self.env[-1]:
                                 self.env[-1][op_token.join(terms[:-1])] = term0.callmethod(self.OPERATORS[op], [self.evaluate(terms[-1])])
                                 return self.env[-1][op_token.join(terms[:-1])]
