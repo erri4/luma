@@ -8,6 +8,7 @@ import subprocess
 import shutil
 import time
 
+
 def run_installer():
     if os.name == "nt":
         installer_path = os.path.join("C:\\Windows", "installer.exe")
@@ -31,6 +32,7 @@ def run_installer():
         print(f"Failed to run installer: {e}")
     sys.exit()
 
+
 def apt_ins(dest_folder):
     time.sleep(2)
     if os.name == "nt":
@@ -42,7 +44,9 @@ def apt_ins(dest_folder):
             try:
                 shutil.copy2(installer_src, installer_dest)
             except PermissionError:
-                print("Permission denied: could not copy installer.exe to C:\\Windows. Run as administrator.")
+                print(
+                    "Permission denied: could not copy installer.exe to C:\\Windows. Run as administrator."
+                )
             except Exception as e:
                 print(f"Failed to copy installer.exe: {e}")
     elif os.name == "posix":
@@ -56,7 +60,9 @@ def apt_ins(dest_folder):
                     shutil.copy2(installer_src, installer_dest)
                     os.chmod(installer_dest, 0o755)
                 except PermissionError:
-                    print("Permission denied: could not copy installer.bin to /usr/local/bin. Run as root or use sudo.")
+                    print(
+                        "Permission denied: could not copy installer.bin to /usr/local/bin. Run as root or use sudo."
+                    )
                 except OSError:
                     continue
                 except Exception as e:
@@ -67,9 +73,9 @@ def apt_ins(dest_folder):
     else:
         base_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.dirname(base_dir)
-    jsfile = os.path.join(base_dir, 'version.json')
+    jsfile = os.path.join(base_dir, "version.json")
     with open(jsfile) as f:
-        if json.load(f)['commit'] != "IGNORE":
+        if json.load(f)["commit"] != "IGNORE":
             repo = "Erri4/PyLuma"
             url = f"https://api.github.com/repos/{repo}/commits/main"
             with urllib.request.urlopen(url) as response:
@@ -81,22 +87,16 @@ def apt_ins(dest_folder):
             else:
                 base_dir = os.path.dirname(os.path.abspath(__file__))
             base_dir = os.path.dirname(base_dir)
-            jsfile = os.path.join(base_dir, 'version.json')
-            with open(jsfile, 'w+') as f:
+            jsfile = os.path.join(base_dir, "version.json")
+            with open(jsfile, "w+") as f:
                 data = json.load(f)
                 data["commit"] = commit
                 json.dump(data)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Luma launcher that runs a script."
-    )
-    parser.add_argument(
-        "script",
-        nargs="?",
-        help="Path to the Luma script to run"
-    )
+    parser = argparse.ArgumentParser(description="Luma launcher that runs a script.")
+    parser.add_argument("script", nargs="?", help="Path to the Luma script to run")
 
     parser.add_argument("--update", action="store_true", help="Update luma")
     parser.add_argument("--version", action="store_true", help="Print current version")
@@ -105,7 +105,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if not (args.update or args.version) and not args.script:
-        parser.error("the following arguments are required: script (unless --update or --version is specified)")
+        parser.error(
+            "the following arguments are required: script (unless --update or --version is specified)"
+        )
 
     if args.aptins_internal:
         apt_ins(args.aptins_internal)
@@ -116,19 +118,19 @@ if __name__ == "__main__":
         else:
             base_dir = os.path.dirname(os.path.abspath(__file__))
         base_dir = os.path.dirname(base_dir)
-        jsfile = os.path.join(base_dir, 'version.json')
+        jsfile = os.path.join(base_dir, "version.json")
         with open(jsfile) as f:
-            print(json.load(f)['version'])
+            print(json.load(f)["version"])
         sys.exit(0)
-    
+
     if getattr(sys, "frozen", False):
         base_dir = os.path.dirname(sys.executable)
     else:
         base_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.dirname(base_dir)
-    jsfile = os.path.join(base_dir, 'version.json')
+    jsfile = os.path.join(base_dir, "version.json")
     with open(jsfile) as f:
-        if json.load(f)['commit'] != "IGNORE":
+        if json.load(f)["commit"] != "IGNORE":
             repo = "Erri4/PyLuma"
             url = f"https://api.github.com/repos/{repo}/commits/main"
             with urllib.request.urlopen(url) as response:
@@ -140,13 +142,15 @@ if __name__ == "__main__":
             else:
                 base_dir = os.path.dirname(os.path.abspath(__file__))
             base_dir = os.path.dirname(base_dir)
-            jsfile = os.path.join(base_dir, 'version.json')
+            jsfile = os.path.join(base_dir, "version.json")
             with open(jsfile) as f:
-                if json.load(f)['commit'] != commit:
+                if json.load(f)["commit"] != commit:
                     if args.update:
                         run_installer()
                     else:
-                        print('A new version of luma is available. To update use \033[32mluma --update\033[0m.')
+                        print(
+                            "A new version of luma is available. To update use \033[32mluma --update\033[0m."
+                        )
                 else:
                     if args.update:
                         print("No now version was found. Interpreter wasn't updated.")
