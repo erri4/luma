@@ -10,10 +10,6 @@ import os
 r"""
 TODO:
 OPTIMIZE
-. lambda functions
-    syntax:
-    lambda x.x**2
-
 . pmfl
 
 compile:
@@ -38,18 +34,18 @@ class LumaInterpreter:
         " or ",
     ]
     OPERATORS: dict[str, str] = {
-        "-": "@subtraction",  #
-        "+": "@addition",  #
-        "/": "@division",  #
-        "*": "@multiplication",  #
-        "%": "@modulus",  #
-        "%=": "@modulus",  #
-        "+=": "@addition",  #
-        "-=": "@subtraction",  #
-        "*=": "@multiplication",  #
-        "/=": "@division",  #
-        "**": "@power",  #
-        "**=": "@power",  #
+        "-": "@subtraction",
+        "+": "@addition",
+        "/": "@division",
+        "*": "@multiplication",
+        "%": "@modulus",
+        "%=": "@modulus",
+        "+=": "@addition",
+        "-=": "@subtraction",
+        "*=": "@multiplication",
+        "/=": "@division",
+        "**": "@power",
+        "**=": "@power",
         ">>": "@shift_r",
         ">>=": "@shift_r",
         "<<": "@shift_l",
@@ -94,6 +90,7 @@ class LumaInterpreter:
         "throw",
         "delete",
         "new",
+        "lambda",
     ]
     tb: list[tuple[int, str, str]] = []
     overloads: dict[str, list[Callable]] = {}
@@ -1342,7 +1339,7 @@ class LumaInterpreter:
             return False
 
         def call(self, args):
-            raise NotImplementedError
+            LumaInterpreter.throw(LumaInterpreter().env['TypeError'], "Cannot call a class: must use 'new'")
 
         def store(self, name: str, value: EvaluatedType):
             if type(value) is LumaInterpreter.LumaClass:
@@ -1553,9 +1550,9 @@ class LumaInterpreter:
                 for i in range(len(items)):
                     k, v = items[i][0], items[i][1]
                     dct += (
-                        str(k.callmethod("@repr", []))
+                        repr(k)
                         + ": "
-                        + str(v.callmethod("@repr", []))
+                        + repr(v)
                         + (", " if i + 1 in range(len(items)) else "")
                     )
                 dct += "}"
@@ -1582,9 +1579,9 @@ class LumaInterpreter:
                 for i in range(len(items)):
                     k, v = items[i][0], items[i][1]
                     dct += (
-                        str(k.callmethod("@repr", []))
+                        repr(k)
                         + ": "
-                        + str(v.callmethod("@repr", []))
+                        + repr(v)
                         + (", " if i + 1 in range(len(items)) else "")
                     )
                 dct += "}"
@@ -1965,6 +1962,19 @@ class LumaInterpreter:
                         f"@stringify must return a string and not {r.typename}",
                     )
             return r
+        
+        def __repr__(self):
+            r = self.functions["@repr"].run([], self)
+            if type(r) is LumaInterpreter.InstancedLumaObject:
+                if r.typename == "str":
+                    r = r.value
+                else:
+                    interpreter = LumaInterpreter()
+                    LumaInterpreter.throw(
+                        interpreter.env[0]["typeError"],
+                        f"@repr must return a string and not {r.typename}",
+                    )
+            return r
 
         def __int__(self):
             r = self.functions["@int"].run([], self)
@@ -1976,6 +1986,19 @@ class LumaInterpreter:
                     LumaInterpreter.throw(
                         interpreter.env[0]["typeError"],
                         f"@int must return an int and not {r.typename}",
+                    )
+            return r
+
+        def __float__(self):
+            r = self.functions["@float"].run([], self)
+            if type(r) is LumaInterpreter.InstancedLumaObject:
+                if r.typename == "float":
+                    r = r.vars["value"]
+                else:
+                    interpreter = LumaInterpreter()
+                    LumaInterpreter.throw(
+                        interpreter.env[0]["typeError"],
+                        f"@float must return a float and not {r.typename}",
                     )
             return r
 

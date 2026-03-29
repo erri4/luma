@@ -1,2 +1,3 @@
-set L to (lambda x.x**2)(5)
-show(L)
+import "lib:math.lum" as math
+show(math.pi)
+show(math.sin(math.pi))
