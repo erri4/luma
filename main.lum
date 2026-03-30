@@ -1,3 +1,7 @@
+set i to 0
+show(i)
+i++
+show(i)
 import "lib:math.lum" as math
 show(math.pi)
-show(math.sin(math.pi))
+show(math.cos(math.pi))

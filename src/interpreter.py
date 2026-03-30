@@ -21,7 +21,16 @@ EvaluatedType = Union["LumaInterpreter.InstancedLumaObject", int, str, dict]
 
 class LumaInterpreter:
     _instance = None
-    env: list[dict[str, Union[EvaluatedType, "LumaInterpreter.LumaClass"]]] = [{}]
+    env: list[
+        dict[
+            str,
+            Union[
+                EvaluatedType,
+                "LumaInterpreter.LumaClass",
+                "LumaInterpreter.LumaFunction",
+            ],
+        ]
+    ] = [{}]
     LOGICAL_OPERATORS: list[str] = [
         " == ",
         " <= ",
@@ -34,22 +43,22 @@ class LumaInterpreter:
         " or ",
     ]
     OPERATORS: dict[str, str] = {
-        "-": "@subtraction",
-        "+": "@addition",
-        "/": "@division",
-        "*": "@multiplication",
-        "%": "@modulus",
         "%=": "@modulus",
         "+=": "@addition",
         "-=": "@subtraction",
         "*=": "@multiplication",
         "/=": "@division",
-        "**": "@power",
         "**=": "@power",
-        ">>": "@shift_r",
-        ">>=": "@shift_r",
-        "<<": "@shift_l",
         "<<=": "@shift_l",
+        ">>=": "@shift_r",
+        "-": "@subtraction",
+        "+": "@addition",
+        "/": "@division",
+        "*": "@multiplication",
+        "%": "@modulus",
+        "**": "@power",
+        ">>": "@shift_r",
+        "<<": "@shift_l",
     }
     REAL_OPERATORS: dict[str, Callable] = {
         "-": operator.sub,
@@ -142,7 +151,7 @@ class LumaInterpreter:
             setattr(this, "msg", msg)
             setattr(this, "tb", LumaInterpreter().traceback())
 
-        BaseError.functions["constructor"] = LumaInterpreter.LumaFunction(
+        BaseError.children["constructor"] = LumaInterpreter.LumaFunction(
             "constructor",
             [
                 {"name": "this"},
@@ -156,7 +165,7 @@ class LumaInterpreter:
         def trigger(this=None):
             raise LumaInterpreter.LumaException(this)
 
-        BaseError.functions["trigger"] = LumaInterpreter.LumaFunction(
+        BaseError.children["trigger"] = LumaInterpreter.LumaFunction(
             "trigger",
             [{"name": "this"}],
             trigger,
@@ -167,7 +176,7 @@ class LumaInterpreter:
         def stringify(this=None):
             return getattr(this, "msg")
 
-        BaseError.functions["@stringify"] = LumaInterpreter.LumaFunction(
+        BaseError.children["@stringify"] = LumaInterpreter.LumaFunction(
             "@stringify",
             [{"name": "this"}],
             stringify,
@@ -179,10 +188,10 @@ class LumaInterpreter:
         self.filename = filename
         self.scopes.append(program)
         self.runimport(":builtins.lum", None)
-        try:
-            self.runsubprogram(program, infunc=False, file=self.filename)
-        except LumaInterpreter.LumaException as e:
-            print(e)
+        """try:"""
+        self.runsubprogram(program, infunc=False, file=self.filename)
+        """except LumaInterpreter.LumaException as e:
+            print(e)"""
 
     @staticmethod
     def getfirstword(line: str):
@@ -295,7 +304,7 @@ class LumaInterpreter:
                     self.runsubprogram(subprogram, infunc=False, file=module)
                 else:
                     self.env[0]["module"] = LumaInterpreter.LumaClass("module")
-                    self.env[0]["module"].functions["constructor"] = (
+                    self.env[0]["module"].children["constructor"] = (
                         LumaInterpreter.LumaFunction(
                             "constructor", [], "", 0, "INTERNAL"
                         )
@@ -362,29 +371,28 @@ class LumaInterpreter:
                 thecls = self.LumaClass(token["name"], [])
                 if token["parent"]:
                     parent = token["parent"]
-                    thecls.functions = self.env[0][parent].functions.copy()
-                    thecls.vars = self.env[0][parent].vars.copy()
+                    thecls.children = self.env[0][parent].children.copy()
                     thecls.parents = self.env[0][parent].parents.copy()
                     thecls.parents.append(parent)
-                thecls.vars |= {
+                thecls.children |= {
                     var["name"]: self.parse_py(var, full) for var in token["vars"]
                 }
                 for func in token["functions"]:
                     f = self.parse_py(func, full)
                     if "this" not in (arg["name"] for arg in f.args):
                         f.args.insert(0, {"name": "this"})
-                    thecls.functions |= {f.actualname: f}
-                thecls.classes |= {
+                    thecls.children |= {f.actualname: f}
+                thecls.children |= {
                     cls_["name"]: self.parse_py(cls_, full) for cls_ in token["classes"]
                 }
                 constructor = self.parse_py(token["constructor"], full)
                 if type(constructor) is LumaInterpreter.LumaFunction:
                     if "this" not in (arg["name"] for arg in constructor.args):
                         constructor.args.insert(0, {"name": "this"})
-                thecls.functions["constructor"] = (
+                thecls.children["constructor"] = (
                     constructor
                     if token["constructor"]
-                    else thecls.functions["constructor"]
+                    else thecls.children["constructor"]
                 )
                 return thecls
             if token.get("type", None) == "functionType":
@@ -413,23 +421,19 @@ class LumaInterpreter:
             for var in self.env[0].values():
                 if type(var) is LumaInterpreter.InstancedLumaObject:
                     if var.typename == "module":
-                        if token.get("type", None) in var.vars:
-                            tp = var.vars[token.get("type", None)]
-                        stack = [var.vars]
+                        if token.get("type", None) in var.children:
+                            tp = var.children[token.get("type", None)]
+                        stack = [var.children]
                         while stack:
                             for item in stack[0].values():
                                 if (
                                     type(item) is LumaInterpreter.InstancedLumaObject
                                     and getattr(item, "typename", None) == "module"
                                 ):
-                                    if token.get("type", None) in item.vars:
-                                        tp = item.vars[token.get("type", None)]
-                                    stack.append(item.vars)
+                                    if token.get("type", None) in item.children:
+                                        tp = item.children[token.get("type", None)]
+                                    stack.append(item.children)
                             del stack[0]
-                        if token.get("type", None) in var.functions:
-                            tp = var.functions[token.get("type", None)]
-                        if token.get("type", None) in var.classes:
-                            tp = var.classes[token.get("type", None)]
             if full:
                 tp = self.parse_py(full.get(token.get("type", None), None), full)
             try:
@@ -514,12 +518,8 @@ class LumaInterpreter:
                 return
         if Object is None or type(Object) is LumaInterpreter:
             varis = self.env[-1]
-            functions: dict[str, LumaInterpreter.LumaFunction] = self.env[0]
-            classes: dict[str, LumaInterpreter.LumaFunction] = self.env[0]
         else:
-            varis = Object.vars
-            functions: dict[str, LumaInterpreter.LumaFunction] = Object.functions
-            classes: dict[str, LumaInterpreter.LumaClass] = Object.classes
+            varis = Object.children
         program = self.scopes[-1]
         firstword = LumaInterpreter.getfirstword(line)
         if firstword == "function":
@@ -533,7 +533,7 @@ class LumaInterpreter:
             body = body.strip()
             if line[-1] == "}":
                 body = ""
-            functions[func_name] = self.LumaFunction(
+            varis[func_name] = self.LumaFunction(
                 func_name,
                 args + ([{"name": "this"}] if Object is not LumaInterpreter() else []),
                 body,
@@ -554,20 +554,18 @@ class LumaInterpreter:
             if line[-1] == "}":
                 body = ""
             parent = None
-            classes[class_name] = self.LumaClass(
+            varis[class_name] = self.LumaClass(
                 class_name,
             )
             if "(" in class_name and ")" in class_name:
                 parent = class_name[class_name.find("(") + 1 : class_name.find(")")]
                 class_name = class_name[: class_name.find("(")].strip()
-                classes[class_name] = self.LumaClass(
+                varis[class_name] = self.LumaClass(
                     class_name,
                 )
-                classes[class_name].functions = classes[parent].functions.copy()
-                classes[class_name].vars = classes[parent].vars.copy()
-                classes[class_name].parents = classes[parent].parents.copy()
-                classes[class_name].parents.append(parent)
-            self.runsubprogram(body, classes[class_name], line1=linenum + 1, file=file)
+                varis[class_name].children = varis[parent].children.copy()
+                varis[class_name].parents.append(parent)
+            self.runsubprogram(body, varis[class_name], line1=linenum + 1, file=file)
         elif firstword == "constructor":
             class_name = line[12 : line.find("(")].strip()
             args = self.parse_args(line[line.find("(") + 1 : line.rfind(")")])
@@ -579,7 +577,7 @@ class LumaInterpreter:
             body = body.strip()
             if line[-1] == "}":
                 body = ""
-            functions["constructor"] = self.LumaFunction(
+            varis["constructor"] = self.LumaFunction(
                 "constructor", args + [{"name": "this"}], body, linenum + 1, file
             )
         elif firstword == "set":
@@ -588,7 +586,7 @@ class LumaInterpreter:
             splitted = LumaInterpreter.smrtsplt(varname, ".")
             if len(splitted) > 1:
                 instancename = ".".join(splitted[:-1])
-                self.evaluate(instancename).vars[splitted[-1]] = value
+                self.evaluate(instancename).children[splitted[-1]] = value
             elif LumaInterpreter.is_index_call(varname):
                 splitted = LumaInterpreter.smrtsplt(varname, "[")
                 prefix = "[".join(splitted[:-1])
@@ -620,7 +618,7 @@ class LumaInterpreter:
             splitted = LumaInterpreter.smrtsplt(varname, ".")
             if len(splitted) > 1:
                 instancename = ".".join(splitted[:-1])
-                del self.evaluate(instancename).vars[splitted[-1]]
+                del self.evaluate(instancename).children[splitted[-1]]
             elif LumaInterpreter.is_index_call(varname):
                 splitted = LumaInterpreter.smrtsplt(varname, "[")
                 prefix = "[".join(splitted[:-1])
@@ -646,7 +644,7 @@ class LumaInterpreter:
             self.runimport(
                 str(self.evaluate(module)),
                 name,
-                Object=getattr(Object, "vars", self.env[0]),
+                Object=getattr(Object, "children", self.env[0]),
                 relative=(os.path.dirname(file) if file else "."),
             )
         elif firstword == "extend":
@@ -1117,18 +1115,17 @@ class LumaInterpreter:
             splitted = LumaInterpreter.smrtsplt(expr, op_token)
             if op_token in expr and len(splitted) > 1 and "" not in splitted:
                 terms = splitted
-                term0 = self.evaluate(op_token.join(terms[:-1]))
+                term0 = self.evaluate(op_token.join(terms[:-1]).strip())
                 if type(term0) is LumaInterpreter.InstancedLumaObject:
-                    if self.OPERATORS[op] in term0.functions:
+                    if self.OPERATORS[op] in term0.children:
                         if op in ["+=", "/=", "-=", "*=", "**=", "%=", ">>=", "<<="]:
-                            if op_token.join(terms[:-1]) in self.env[-1]:
-                                self.env[-1][op_token.join(terms[:-1])] = (
-                                    term0.callmethod(
-                                        self.OPERATORS[op], [self.evaluate(terms[-1])]
-                                    )
+                            if op_token.join(terms[:-1]).strip() in self.env[-1]:
+                                upd = term0.callmethod(
+                                    self.OPERATORS[op], [self.evaluate(terms[-1])]
                                 )
-                                return self.env[-1][op_token.join(terms[:-1])]
-                            if op_token.join(terms[:-1]) in self.env[0]:
+                                self.env[-1][op_token.join(terms[:-1]).strip()] = upd
+                                return self.env[-1][op_token.join(terms[:-1]).strip()]
+                            if op_token.join(terms[:-1]).strip() in self.env[0]:
                                 self.env[0][op_token.join(terms[:-1])] = (
                                     term0.callmethod(
                                         self.OPERATORS[op], [self.evaluate(terms[-1])]
@@ -1167,7 +1164,7 @@ class LumaInterpreter:
             zero: LumaInterpreter.InstancedLumaObject["int"] = self.env[0][
                 "int"
             ].instance([0])
-            if "@subtraction" not in obj.functions:
+            if "@subtraction" not in obj.children:
                 LumaInterpreter.throw(
                     self.env[0]["typeError"],
                     f"unsupported operator: unable to perform operator '-' on types '{LumaInterpreter.namourtype(obj)}' and '{LumaInterpreter.namourtype(zero)}'",
@@ -1178,7 +1175,7 @@ class LumaInterpreter:
             one: LumaInterpreter.InstancedLumaObject["int"] = self.env[0][
                 "int"
             ].instance([1])
-            if "@addition" not in obj.functions:
+            if "@addition" not in obj.children:
                 LumaInterpreter.throw(
                     self.env[0]["typeError"],
                     f"unsupported operator: unable to perform operator '++' on types '{LumaInterpreter.namourtype(obj)}' and '{LumaInterpreter.namourtype(one)}'",
@@ -1196,7 +1193,7 @@ class LumaInterpreter:
             one: LumaInterpreter.InstancedLumaObject["int"] = self.env[0][
                 "int"
             ].instance([1])
-            if "@subtraction" not in obj.functions:
+            if "@subtraction" not in obj.children:
                 LumaInterpreter.throw(
                     self.env[0]["typeError"],
                     f"unsupported operator: unable to perform operator '--' on types '{LumaInterpreter.namourtype(obj)}' and '{LumaInterpreter.namourtype(one)}'",
@@ -1268,15 +1265,11 @@ class LumaInterpreter:
             propertyname = dotparts[-1]
             instance: LumaInterpreter.InstancedLumaObject = self.evaluate(instancename)
             if instance:
-                if propertyname in instance.vars.keys():
-                    r = instance.vars[propertyname]
+                if propertyname in instance.children.keys():
+                    r = instance.children[propertyname]
+                    if isinstance(r, LumaInterpreter.LumaFunction):
+                        return instance.tie(propertyname)
                     return r
-                elif propertyname in instance.functions.keys():
-                    return instance.tie(propertyname)
-                elif propertyname in instance.classes.keys():
-                    args = self.extractargs(expr.strip(), firstword)
-                    instance = instance.classes[propertyname].instance(args)
-                    return instance
                 else:
                     LumaInterpreter.throw(
                         self.env[0]["typeError"],
@@ -1300,14 +1293,19 @@ class LumaInterpreter:
             self.actualname = name
             self.typename = "classType"
             self.parents = parents
-            self.functions: dict[str, LumaInterpreter.LumaFunction] = {}
-            self.classes: dict[str, LumaInterpreter.LumaClass] = {}
-            self.vars: dict[str, EvaluatedType] = {}
+            self.children: dict[
+                str,
+                Union[
+                    EvaluatedType,
+                    "LumaInterpreter.LumaClass",
+                    "LumaInterpreter.LumaFunction",
+                ],
+            ] = {}
 
             def stringify(this=None):
                 return f"<{self.typename} object>"
 
-            self.functions["@stringify"] = LumaInterpreter.LumaFunction(
+            self.children["@stringify"] = LumaInterpreter.LumaFunction(
                 "@stringify",
                 [],
                 stringify,
@@ -1318,14 +1316,13 @@ class LumaInterpreter:
             def repre(this=None):
                 return str(this)
 
-            self.functions["@repr"] = LumaInterpreter.LumaFunction(
+            self.children["@repr"] = LumaInterpreter.LumaFunction(
                 "@repr",
                 [],
                 repre,
                 0,
                 "INTERNALCLS",
             )
-            self.vars: dict[str, EvaluatedType] = {}
 
         def __lbool__(self):
             return False
@@ -1339,21 +1336,22 @@ class LumaInterpreter:
             return False
 
         def call(self, args):
-            LumaInterpreter.throw(LumaInterpreter().env['TypeError'], "Cannot call a class: must use 'new'")
+            LumaInterpreter.throw(
+                LumaInterpreter().env["TypeError"],
+                "Cannot call a class: must use 'new'",
+            )
 
         def store(self, name: str, value: EvaluatedType):
             if type(value) is LumaInterpreter.LumaClass:
-                self.classes[name] = value
+                self.children[name] = value
             if type(value) is LumaInterpreter.LumaFunction:
-                self.functions[name] = value
+                self.children[name] = value
             else:
-                self.vars[name] = value
+                self.children[name] = value
 
         def instance(self, args: list):
             return LumaInterpreter.InstancedLumaObject(
-                self.vars,
-                self.functions,
-                self.classes,
+                self.children,
                 self.actualname,
                 args,
                 self.parents,
@@ -1388,13 +1386,8 @@ class LumaInterpreter:
             if varsholder is None:
                 varsholder = interpreter.env[0]
             if Object is not None:
-                tmp = False
-                for arg in self.args:
-                    if arg["name"] == "this":
-                        tmp = True
-                if tmp:
+                if "this" in [x["name"] for x in self.args]:
                     argdict["this"] = Object
-                del tmp
             interpreter.env.append(argdict)
             orig_vars = set(varsholder.keys())
             r = None
@@ -1465,7 +1458,7 @@ class LumaInterpreter:
             ):
                 this.value = value.copy()
 
-            self.functions["constructor"] = LumaInterpreter.LumaFunction(
+            self.children["constructor"] = LumaInterpreter.LumaFunction(
                 "constructor",
                 [{"name": "this"}, {"name": "value"}],
                 constructor,
@@ -1478,7 +1471,7 @@ class LumaInterpreter:
             ) -> Any:
                 return this.value[pos]
 
-            self.functions["@at"] = LumaInterpreter.LumaFunction(
+            self.children["@at"] = LumaInterpreter.LumaFunction(
                 "@at",
                 [{"name": "this"}, {"name": "pos"}],
                 at,
@@ -1491,7 +1484,7 @@ class LumaInterpreter:
             ) -> Any:
                 del this.value[pos]
 
-            self.functions["del_"] = LumaInterpreter.LumaFunction(
+            self.children["del_"] = LumaInterpreter.LumaFunction(
                 "del_",
                 [{"name": "this"}, {"name": "pos"}],
                 del_,
@@ -1505,7 +1498,7 @@ class LumaInterpreter:
                 interpreter = LumaInterpreter()
                 return interpreter.env[0]["int"].instance([len(this.value)])
 
-            self.functions["@int"] = LumaInterpreter.LumaFunction(
+            self.children["@int"] = LumaInterpreter.LumaFunction(
                 "@int",
                 [
                     {"name": "this"},
@@ -1520,7 +1513,7 @@ class LumaInterpreter:
             ) -> None:
                 this.value[pos] = value
 
-            self.functions["@set"] = LumaInterpreter.LumaFunction(
+            self.children["@set"] = LumaInterpreter.LumaFunction(
                 "@set",
                 [{"name": "this"}, {"name": "pos"}, {"name": "value"}],
                 dctset,
@@ -1533,7 +1526,7 @@ class LumaInterpreter:
             ) -> None:
                 del this.value[pos]
 
-            self.functions["@del"] = LumaInterpreter.LumaFunction(
+            self.children["@del"] = LumaInterpreter.LumaFunction(
                 "@del",
                 [{"name": "this"}, {"name": "pos"}],
                 delat,
@@ -1560,7 +1553,7 @@ class LumaInterpreter:
                     [dct],
                 )
 
-            self.functions["@stringify"] = LumaInterpreter.LumaFunction(
+            self.children["@stringify"] = LumaInterpreter.LumaFunction(
                 "@stringify",
                 [
                     {"name": "this"},
@@ -1589,7 +1582,7 @@ class LumaInterpreter:
                     [dct],
                 )
 
-            self.functions["@repr"] = LumaInterpreter.LumaFunction(
+            self.children["@repr"] = LumaInterpreter.LumaFunction(
                 "@repr",
                 [
                     {"name": "this"},
@@ -1606,7 +1599,7 @@ class LumaInterpreter:
                 obj = int_.instance([len(this.value)])
                 return obj
 
-            self.functions["len"] = LumaInterpreter.LumaFunction(
+            self.children["len"] = LumaInterpreter.LumaFunction(
                 "len",
                 [
                     {"name": "this"},
@@ -1623,7 +1616,7 @@ class LumaInterpreter:
                     LumaInterpreter().env[0]["bool"].instance([bool(len(this.value))])
                 )
 
-            self.functions["@bool"] = LumaInterpreter.LumaFunction(
+            self.children["@bool"] = LumaInterpreter.LumaFunction(
                 "@bool",
                 [
                     {"name": "this"},
@@ -1646,7 +1639,7 @@ class LumaInterpreter:
                 else:
                     this.value = bool(value)
 
-            self.functions["constructor"] = LumaInterpreter.LumaFunction(
+            self.children["constructor"] = LumaInterpreter.LumaFunction(
                 "constructor",
                 [{"name": "this"}, {"name": "value"}],
                 constructor,
@@ -1660,7 +1653,7 @@ class LumaInterpreter:
                 interpreter = LumaInterpreter()
                 return interpreter.env[0]["int"].instance([int(this.value)])
 
-            self.functions["@int"] = LumaInterpreter.LumaFunction(
+            self.children["@int"] = LumaInterpreter.LumaFunction(
                 "@int",
                 [
                     {"name": "this"},
@@ -1676,7 +1669,7 @@ class LumaInterpreter:
                 interpreter = LumaInterpreter()
                 return interpreter.env[0]["str"].instance([str(this.value).lower()])
 
-            self.functions["@stringify"] = LumaInterpreter.LumaFunction(
+            self.children["@stringify"] = LumaInterpreter.LumaFunction(
                 "@stringify",
                 [
                     {"name": "this"},
@@ -1691,7 +1684,7 @@ class LumaInterpreter:
             ) -> "LumaInterpreter.InstancedLumaObject":
                 return this
 
-            self.functions["@bool"] = LumaInterpreter.LumaFunction(
+            self.children["@bool"] = LumaInterpreter.LumaFunction(
                 "@bool",
                 [
                     {"name": "this"},
@@ -1707,7 +1700,7 @@ class LumaInterpreter:
                 interpreter = LumaInterpreter()
                 return interpreter.env[0]["str"].instance([str(this.value).lower()])
 
-            self.functions["@repr"] = LumaInterpreter.LumaFunction(
+            self.children["@repr"] = LumaInterpreter.LumaFunction(
                 "@repr",
                 [
                     {"name": "this"},
@@ -1736,7 +1729,7 @@ class LumaInterpreter:
                         return
                 this.value = str(value)
 
-            self.functions["constructor"] = LumaInterpreter.LumaFunction(
+            self.children["constructor"] = LumaInterpreter.LumaFunction(
                 "constructor",
                 [{"name": "this"}, {"name": "value"}],
                 constructor,
@@ -1748,7 +1741,7 @@ class LumaInterpreter:
                 interpreter: LumaInterpreter = LumaInterpreter()
                 return interpreter.env[0]["str"].instance([this.value + str(other)])
 
-            self.functions["@addition"] = LumaInterpreter.LumaFunction(
+            self.children["@addition"] = LumaInterpreter.LumaFunction(
                 "@addition",
                 [{"name": "this"}, {"name": "other"}],
                 add,
@@ -1762,7 +1755,7 @@ class LumaInterpreter:
                 interpreter = LumaInterpreter()
                 return interpreter.env[0]["int"].instance([int(this.value)])
 
-            self.functions["@int"] = LumaInterpreter.LumaFunction(
+            self.children["@int"] = LumaInterpreter.LumaFunction(
                 "@int",
                 [
                     {"name": "this"},
@@ -1778,7 +1771,7 @@ class LumaInterpreter:
                 interpreter: LumaInterpreter = LumaInterpreter()
                 if pos.typename == "int":
                     return interpreter.env[0]["str"].instance(
-                        [this.value[pos.vars["value"]]]
+                        [this.value[pos.children["value"]]]
                     )
                 else:
                     interpreter.throw(
@@ -1789,7 +1782,7 @@ class LumaInterpreter:
                         interpreter.filename,
                     )
 
-            self.functions["@at"] = LumaInterpreter.LumaFunction(
+            self.children["@at"] = LumaInterpreter.LumaFunction(
                 "@at",
                 [{"name": "this"}, {"name": "pos"}],
                 at,
@@ -1802,7 +1795,7 @@ class LumaInterpreter:
             ) -> "LumaInterpreter.InstancedLumaObject":
                 return LumaInterpreter().env[0]["str"].instance([this.value])
 
-            self.functions["@stringify"] = LumaInterpreter.LumaFunction(
+            self.children["@stringify"] = LumaInterpreter.LumaFunction(
                 "@stringify",
                 [
                     {"name": "this"},
@@ -1831,7 +1824,7 @@ class LumaInterpreter:
                     LumaInterpreter().env[0]["str"].instance([json.dumps(this.value)])
                 )
 
-            self.functions["@repr"] = LumaInterpreter.LumaFunction(
+            self.children["@repr"] = LumaInterpreter.LumaFunction(
                 "@repr",
                 [
                     {"name": "this"},
@@ -1844,7 +1837,7 @@ class LumaInterpreter:
             def length(this: "LumaInterpreter.InstancedLumaObject | None" = None):
                 return LumaInterpreter().env[0]["int"].instance([len(this.value)])
 
-            self.functions["len"] = LumaInterpreter.LumaFunction(
+            self.children["len"] = LumaInterpreter.LumaFunction(
                 "len",
                 [
                     {"name": "this"},
@@ -1857,7 +1850,7 @@ class LumaInterpreter:
             def lbool(this: "LumaInterpreter.InstancedLumaObject | None" = None):
                 return LumaInterpreter().env[0]["bool"].instance([len(this.value)])
 
-            self.functions["@bool"] = LumaInterpreter.LumaFunction(
+            self.children["@bool"] = LumaInterpreter.LumaFunction(
                 "@bool",
                 [
                     {"name": "this"},
@@ -1870,26 +1863,29 @@ class LumaInterpreter:
     class InstancedLumaObject[ClassName: LiteralString]:
         def __init__(
             self,
-            varis: dict[str, EvaluatedType],
-            functions: "dict[str, LumaInterpreter.LumaFunction]",
-            classes: "dict[str, LumaInterpreter.LumaClass]",
+            children: dict[
+                str,
+                Union[
+                    EvaluatedType,
+                    "LumaInterpreter.LumaClass",
+                    "LumaInterpreter.LumaFunction",
+                ],
+            ],
             name: ClassName,
             args: list[EvaluatedType],
             parents: list[str],
         ):
             self.value = None
-            self.vars = varis.copy()
+            self.children = children.copy()
             self.parents = parents
-            self.functions = functions.copy()
-            self.classes = classes.copy()
             self.typename = name
             interpreter = LumaInterpreter()
-            if self.functions["@stringify"].file == "INTERNALCLS":
+            if self.children["@stringify"].file == "INTERNALCLS":
 
                 def stringify(this=None):
                     return f"<{self.typename} object>"
 
-                self.functions["@stringify"] = LumaInterpreter.LumaFunction(
+                self.children["@stringify"] = LumaInterpreter.LumaFunction(
                     "@stringify",
                     [],
                     stringify,
@@ -1897,12 +1893,12 @@ class LumaInterpreter:
                     "INTERNAL",
                 )
 
-            if self.functions["@repr"].file == "INTERNALCLS":
+            if self.children["@repr"].file == "INTERNALCLS":
 
                 def repre(this=None):
                     return str(this)
 
-                self.functions["@repr"] = LumaInterpreter.LumaFunction(
+                self.children["@repr"] = LumaInterpreter.LumaFunction(
                     "@repr",
                     [],
                     repre,
@@ -1924,23 +1920,23 @@ class LumaInterpreter:
             raise TypeError("Could not find an active interpreter.")
 
         def call(self, args, line):
-            r = self.functions["@call"].run(args, self, callline=line)
+            r = self.children["@call"].run(args, self, callline=line)
             return r
 
         def tie(self, method: str):
             def wrapper(**args):
-                return self.functions[method].run(list(args.values()), self)
+                return self.children[method].run(list(args.values()), self)
 
             return LumaInterpreter.LumaFunction(
                 method,
-                self.functions[method].args,
+                self.children[method].args,
                 wrapper,
                 0,
                 "INTERNAL",
             )
 
         def callmethod(self, method: str, args: list):
-            methodf: LumaInterpreter.LumaFunction = self.functions[method]
+            methodf: LumaInterpreter.LumaFunction = self.children[method]
             r = methodf.run(args, self)
             return r
 
@@ -1951,7 +1947,7 @@ class LumaInterpreter:
             self.callmethod("constructor", args)
 
         def __str__(self):
-            r = self.functions["@stringify"].run([], self)
+            r = self.children["@stringify"].run([], self)
             if type(r) is LumaInterpreter.InstancedLumaObject:
                 if r.typename == "str":
                     r = r.value
@@ -1962,9 +1958,9 @@ class LumaInterpreter:
                         f"@stringify must return a string and not {r.typename}",
                     )
             return r
-        
+
         def __repr__(self):
-            r = self.functions["@repr"].run([], self)
+            r = self.children["@repr"].run([], self)
             if type(r) is LumaInterpreter.InstancedLumaObject:
                 if r.typename == "str":
                     r = r.value
@@ -1977,10 +1973,10 @@ class LumaInterpreter:
             return r
 
         def __int__(self):
-            r = self.functions["@int"].run([], self)
+            r = self.children["@int"].run([], self)
             if type(r) is LumaInterpreter.InstancedLumaObject:
                 if r.typename == "int":
-                    r = r.vars["value"]
+                    r = r.children["value"]
                 else:
                     interpreter = LumaInterpreter()
                     LumaInterpreter.throw(
@@ -1990,10 +1986,10 @@ class LumaInterpreter:
             return r
 
         def __float__(self):
-            r = self.functions["@float"].run([], self)
+            r = self.children["@float"].run([], self)
             if type(r) is LumaInterpreter.InstancedLumaObject:
                 if r.typename == "float":
-                    r = r.vars["value"]
+                    r = r.children["value"]
                 else:
                     interpreter = LumaInterpreter()
                     LumaInterpreter.throw(
@@ -2003,7 +1999,7 @@ class LumaInterpreter:
             return r
 
         def __lbool__(self) -> "Any | LumaInterpreter.InstancedLumaObject":
-            r = self.functions["@bool"].run([], self)
+            r = self.children["@bool"].run([], self)
             if type(r) is LumaInterpreter.InstancedLumaObject:
                 if r.typename == "bool":
                     return r.value
@@ -2023,41 +2019,43 @@ class LumaInterpreter:
             if self.typename in LumaInterpreter().PY_IMPL_CLASSES:
                 return self.value == other.value
             r = (
-                self.functions["@equal"].run([other], self)
-                if "@equal" in self.functions
-                else (self.typename == other.typename and self.vars == other.vars)
+                self.children["@equal"].run([other], self)
+                if "@equal" in self.children
+                else (
+                    self.typename == other.typename and self.children == other.children
+                )
             )
             return r
 
         def __ne__(self, other):
-            r = self.functions["@nequal"].run([other], self)
+            r = self.children["@nequal"].run([other], self)
             return r
 
         def __lt__(self, other):
-            r = self.functions["@lesst"].run([other], self)
+            r = self.children["@lesst"].run([other], self)
             return r
 
         def __le__(self, other):
-            r = self.functions["@lequal"].run([other], self)
+            r = self.children["@lequal"].run([other], self)
             return r
 
         def __gt__(self, other):
-            r = self.functions["@greatert"].run([other], self)
+            r = self.children["@greatert"].run([other], self)
             return r
 
         def __ge__(self, other):
-            r = self.functions["@gequal"].run([other], self)
+            r = self.children["@gequal"].run([other], self)
             return r
 
         def __hash__(self):
             try:
-                vars_items = sorted(self.vars.items())
+                vars_items = sorted(self.children.items())
                 if hasattr(self, "value"):
                     vars_items.append(self.value)
                 vars_items = tuple(vars_items)
             except TypeError:
                 raise TypeError(
-                    "All keys and values in self.vars must be hashable to compute __hash__"
+                    "All keys and values in self.children must be hashable to compute __hash__"
                 )
             return hash((self.typename, vars_items))
 
