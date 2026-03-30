@@ -188,10 +188,10 @@ class LumaInterpreter:
         self.filename = filename
         self.scopes.append(program)
         self.runimport(":builtins.lum", None)
-        """try:"""
-        self.runsubprogram(program, infunc=False, file=self.filename)
-        """except LumaInterpreter.LumaException as e:
-            print(e)"""
+        try:
+            self.runsubprogram(program, infunc=False, file=self.filename)
+        except LumaInterpreter.LumaException as e:
+            print(e)
 
     @staticmethod
     def getfirstword(line: str):
