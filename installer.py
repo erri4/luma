@@ -9,7 +9,6 @@ import shutil
 import stat
 import json
 import time
-import subprocess
 import requests
 
 """
@@ -109,16 +108,6 @@ def get_files():
             win32con.SMTO_ABORTIFHUNG,
             5000
         )
-    if os.name == "nt":
-        installer_src = os.path.join(dest_folder, "installer.exe")
-        subprocess.Popen(['luma', '--aptins-internal', installer_src])
-        sys.exit()
-    elif os.name == "posix":
-        installer_src = os.path.join(dest_folder, "installer.bin")
-        subprocess.Popen([os.path.join(dest_folder, 'bin', 'luma'), '--aptins-internal', installer_src])
-        sys.exit()
-        
-
 
 def add_to_PATH(path: str):
     if os.name == "nt":
