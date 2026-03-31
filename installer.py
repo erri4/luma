@@ -13,7 +13,7 @@ import requests
 
 """
 compile:
-nuitka --follow-imports --standalone --windows-console-mode=force --onefile .\installer.py
+nuitka --follow-imports --standalone --windows-console-mode=force --onefile --lto=no .\\installer.py
 """
 
 try:
