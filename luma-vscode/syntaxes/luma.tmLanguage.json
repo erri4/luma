@@ -11,7 +11,7 @@
     "keywords": {
       "patterns": [{
         "name": "keyword.control.luma",
-        "match": "\\b(set|to|function|constructor|class|import|if|extend|elseif|else|as|try|catch|while|stop|again|return|throw|delete|new)\\b"
+        "match": "\\b(set|to|function|constructor|class|import|if|extend|elseif|else|as|try|catch|while|stop|again|return|throw|delete|new|lambda)\\b"
       }]
     },
     "types": {
