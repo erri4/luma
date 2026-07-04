@@ -31,34 +31,31 @@ class LumaInterpreter:
             ],
         ]
     ] = [{}]
-    LOGICAL_OPERATORS: list[str] = [
-        " == ",
-        " <= ",
-        " =< ",
-        " >= ",
-        " > ",
-        " < ",
-        "not ",
-        " and ",
-        " or ",
-    ]
     OPERATORS: dict[str, str] = {
-        "%=": "@modulus",
-        "+=": "@addition",
-        "-=": "@subtraction",
-        "*=": "@multiplication",
-        "/=": "@division",
-        "**=": "@power",
-        "<<=": "@shift_l",
-        ">>=": "@shift_r",
-        "-": "@subtraction",
-        "+": "@addition",
-        "/": "@division",
-        "*": "@multiplication",
-        "%": "@modulus",
+        "==": "@equ",
+        "<=": "@leq",
+        "=<": "@leq",
+        ">=": "@geq",
+        ">": "@gt",
+        "<": "@lt",
+        "&&": "@and",
+        "||": "@or",
         "**": "@power",
         ">>": "@shift_r",
         "<<": "@shift_l",
+        "/": "@division",
+        "*": "@multiplication",
+        "-": "@subtraction",
+        "+": "@addition",
+        "%": "@modulus",
+        "**=": "@power",
+        "<<=": "@shift_l",
+        ">>=": "@shift_r",
+        "*=": "@multiplication",
+        "/=": "@division",
+        "+=": "@addition",
+        "-=": "@subtraction",
+        "%=": "@modulus",
     }
     REAL_OPERATORS: dict[str, Callable] = {
         "-": operator.sub,
@@ -69,12 +66,17 @@ class LumaInterpreter:
         "**": operator.pow,
         ">>": operator.rshift,
         "<<": operator.lshift,
+        "==": operator.eq,
+        "<=": operator.le,
+        "=<": operator.le,
+        ">=": operator.ge,
+        ">": operator.gt,
+        "<": operator.lt,
+        "&&": operator.and_,
+        "||": operator.or_,
     }
     PY_IMPL_CLASSES = ["bool", "dict", "str"]
     NUMBER_RE = re.compile(r"^[+-]?\d+(\.\d+)?$")
-    LOGICAL_OP_RE = re.compile(
-        r"\s*(" + "|".join(re.escape(op) for op in LOGICAL_OPERATORS) + r")\s*"
-    )
     SAVED_KEYWORDS: list[str] = [
         "set",
         "to",
@@ -908,72 +910,6 @@ class LumaInterpreter:
 
         return not in_quotes and not stack
 
-    def evaluatecond(self, cond: tuple[EvaluatedType, str, EvaluatedType]):
-        if not cond:
-            return False
-        i = 0
-        result = None
-        invert_next = False
-        while i < len(cond):
-            if (
-                type(cond[i]) is not LumaInterpreter.InstancedLumaObject
-                and cond[i] == "not "
-            ):
-                invert_next = not invert_next
-                i += 1
-                continue
-
-            if i + 2 >= len(cond) and not (
-                len(cond) == 2
-                and type(cond[0]) is not LumaInterpreter.InstancedLumaObject
-                and cond[0] == "not "
-            ):
-                break
-            left, op, right = cond[i], cond[i + 1], cond[i + 2]
-            val = LumaInterpreter.eval_single_condition((left, op, right))
-            if invert_next:
-                val = not val
-                invert_next = False
-            i += 3
-
-            if result is None:
-                result = val
-            else:
-                if i < len(cond) and cond[i] == "and ":
-                    result = result and val
-                    i += 1
-                elif i < len(cond) and cond[i] == "or ":
-                    result = result or val
-                    i += 1
-                else:
-                    result = val
-        r = self.env[0]["bool"].instance([bool(result)])
-        return r
-
-    @staticmethod
-    def eval_single_condition(parts: tuple[EvaluatedType, str, EvaluatedType]):
-        left_val, op, right_val = parts
-        if op == " == ":
-            return left_val == right_val
-        elif op in (" <= ", " =< "):
-            return left_val <= right_val
-        elif op == " >= ":
-            return left_val >= right_val
-        elif op == " > ":
-            return left_val > right_val
-        elif op == " < ":
-            return left_val < right_val
-        else:
-            return False
-
-    def is_condition_expression(self, expr: str) -> bool:
-        return any(
-            [
-                (len(LumaInterpreter.smrtsplt(expr, op)) == 2)
-                for op in self.LOGICAL_OPERATORS
-            ]
-        )
-
     @staticmethod
     def get_oldest_parent(cls):
         for ancestor in reversed(cls.__mro__):
@@ -1093,10 +1029,6 @@ class LumaInterpreter:
             and LumaInterpreter.termisclosed(expr[1:-1])
         ):
             return self.evaluate(expr[1:-1])
-        elif self.is_condition_expression(expr):
-            processedcond = self.processcondition(expr)
-            r = self.evaluatecond(processedcond)
-            return r
         elif expr.startswith("lambda"):
             var = expr[7 : expr.find(".")].strip()
             func = expr[expr.find(".") + 1 :].strip()
@@ -1159,6 +1091,11 @@ class LumaInterpreter:
                 if type(data) is LumaInterpreter.InstancedLumaObject
                 else self.env[0]["raw"]
             )
+        elif expr[0] == "!":
+            data: LumaInterpreter.LumaClass = self.evaluate(expr[1:])
+            boole = self.env[0]["bool"].instance([data])
+            boole.value = not boole.value
+            return boole
         elif expr[0] == "-":
             obj: LumaInterpreter.InstancedLumaObject = self.evaluate(expr[1:])
             zero: LumaInterpreter.InstancedLumaObject["int"] = self.env[0][
@@ -1302,6 +1239,28 @@ class LumaInterpreter:
                 ],
             ] = {}
 
+            def equ(this: "LumaInterpreter.InstancedLumaObject" = None, other: "LumaInterpreter.InstancedLumaObject" = None) -> "LumaInterpreter.InstancedLumaObject[bool]":
+                if type(other) is not LumaInterpreter.InstancedLumaObject:
+                    return LumaInterpreter().env[0]["bool"].instance([False])
+                if this.typename in LumaInterpreter().PY_IMPL_CLASSES:
+                    return LumaInterpreter().env[0]["bool"].instance([this.value == other.value])
+                r = (
+                    this.children["@eq"].run([other], this)
+                    if "@eq" in this.children
+                    else (
+                        this.typename == other.typename and this.children == other.children
+                    )
+                )
+                return LumaInterpreter().env[0]["bool"].instance([r])
+
+            self.children["@equ"] = LumaInterpreter.LumaFunction(
+                "@equ",
+                [{'name': 'this'}, {'name': 'other'}],
+                equ,
+                0,
+                "INTERNALCLS",
+            )
+
             def stringify(this=None):
                 return f"<{self.typename} object>"
 
@@ -1337,7 +1296,7 @@ class LumaInterpreter:
 
         def call(self, args):
             LumaInterpreter.throw(
-                LumaInterpreter().env["TypeError"],
+                LumaInterpreter().env["syntaxError"],
                 "Cannot call a class: must use 'new'",
             )
 
@@ -2013,38 +1972,49 @@ class LumaInterpreter:
                 return self.value
             return bool(super())
 
-        def __eq__(self, other: EvaluatedType):
+        def __eq__(self, other: EvaluatedType) -> "LumaInterpreter.InstancedLumaObject[bool]":
             if type(other) is not LumaInterpreter.InstancedLumaObject:
-                return False
+                return LumaInterpreter().env[0]["bool"].instance([False])
             if self.typename in LumaInterpreter().PY_IMPL_CLASSES:
-                return self.value == other.value
+                return LumaInterpreter().env[0]["bool"].instance([self.value == other.value])
             r = (
-                self.children["@equal"].run([other], self)
-                if "@equal" in self.children
+                self.children["@eq"].run([other], self)
+                if "@eq" in self.children
                 else (
                     self.typename == other.typename and self.children == other.children
                 )
             )
-            return r
+            return LumaInterpreter().env[0]["bool"].instance([r])
 
         def __ne__(self, other):
-            r = self.children["@nequal"].run([other], self)
-            return r
+            if type(other) is not LumaInterpreter.InstancedLumaObject:
+                return LumaInterpreter().env[0]["bool"].instance([True])
+            if self.typename in LumaInterpreter().PY_IMPL_CLASSES:
+                return LumaInterpreter().env[0]["bool"].instance([self.value != other.value])
+            r = (
+                self.children["@eq"].run([other], self)
+                if "@eq" in self.children
+                else (
+                    self.typename == other.typename and self.children == other.children
+                )
+            )
+            r.value = not r.value
+            return LumaInterpreter().env[0]["bool"].instance([r])
 
         def __lt__(self, other):
-            r = self.children["@lesst"].run([other], self)
+            r = self.children["@lt"].run([other], self)
             return r
 
         def __le__(self, other):
-            r = self.children["@lequal"].run([other], self)
+            r = self.children["@leq"].run([other], self)
             return r
 
         def __gt__(self, other):
-            r = self.children["@greatert"].run([other], self)
+            r = self.children["@gt"].run([other], self)
             return r
 
         def __ge__(self, other):
-            r = self.children["@gequal"].run([other], self)
+            r = self.children["@geq"].run([other], self)
             return r
 
         def __hash__(self):
