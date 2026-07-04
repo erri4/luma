@@ -10,6 +10,8 @@ import os
 r"""
 TODO:
 OPTIMIZE
+. fix process inline parentheses end finding
+
 . pmfl
 
 compile:
@@ -1239,23 +1241,31 @@ class LumaInterpreter:
                 ],
             ] = {}
 
-            def equ(this: "LumaInterpreter.InstancedLumaObject" = None, other: "LumaInterpreter.InstancedLumaObject" = None) -> "LumaInterpreter.InstancedLumaObject[bool]":
+            def equ(
+                this: "LumaInterpreter.InstancedLumaObject" = None,
+                other: "LumaInterpreter.InstancedLumaObject" = None,
+            ) -> "LumaInterpreter.InstancedLumaObject[bool]":
                 if type(other) is not LumaInterpreter.InstancedLumaObject:
                     return LumaInterpreter().env[0]["bool"].instance([False])
                 if this.typename in LumaInterpreter().PY_IMPL_CLASSES:
-                    return LumaInterpreter().env[0]["bool"].instance([this.value == other.value])
+                    return (
+                        LumaInterpreter()
+                        .env[0]["bool"]
+                        .instance([this.value == other.value])
+                    )
                 r = (
                     this.children["@eq"].run([other], this)
                     if "@eq" in this.children
                     else (
-                        this.typename == other.typename and this.children == other.children
+                        this.typename == other.typename
+                        and this.children == other.children
                     )
                 )
                 return LumaInterpreter().env[0]["bool"].instance([r])
 
             self.children["@equ"] = LumaInterpreter.LumaFunction(
                 "@equ",
-                [{'name': 'this'}, {'name': 'other'}],
+                [{"name": "this"}, {"name": "other"}],
                 equ,
                 0,
                 "INTERNALCLS",
@@ -1972,11 +1982,17 @@ class LumaInterpreter:
                 return self.value
             return bool(super())
 
-        def __eq__(self, other: EvaluatedType) -> "LumaInterpreter.InstancedLumaObject[bool]":
+        def __eq__(
+            self, other: EvaluatedType
+        ) -> "LumaInterpreter.InstancedLumaObject[bool]":
             if type(other) is not LumaInterpreter.InstancedLumaObject:
                 return LumaInterpreter().env[0]["bool"].instance([False])
             if self.typename in LumaInterpreter().PY_IMPL_CLASSES:
-                return LumaInterpreter().env[0]["bool"].instance([self.value == other.value])
+                return (
+                    LumaInterpreter()
+                    .env[0]["bool"]
+                    .instance([self.value == other.value])
+                )
             r = (
                 self.children["@eq"].run([other], self)
                 if "@eq" in self.children
@@ -1990,7 +2006,11 @@ class LumaInterpreter:
             if type(other) is not LumaInterpreter.InstancedLumaObject:
                 return LumaInterpreter().env[0]["bool"].instance([True])
             if self.typename in LumaInterpreter().PY_IMPL_CLASSES:
-                return LumaInterpreter().env[0]["bool"].instance([self.value != other.value])
+                return (
+                    LumaInterpreter()
+                    .env[0]["bool"]
+                    .instance([self.value != other.value])
+                )
             r = (
                 self.children["@eq"].run([other], self)
                 if "@eq" in self.children
