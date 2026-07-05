@@ -8,3 +8,11 @@ show(math.cos(math.pi))
 if (math.cos(math.pi) == -1.0){
     show("hello")
 }
+
+set lst to []
+show(lst)
+lst.add(123)
+lst.add("gagagag")
+show(lst)
+lst.clear()
+show(lst)

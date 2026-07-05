@@ -203,7 +203,7 @@ class float (valuedObject){
 
 class list (dict){
     function add(value){
-        this.@set(this.len(), value)
+        set this[this.len()] to value
     }
 
     function clear(){
