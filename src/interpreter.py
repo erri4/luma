@@ -141,6 +141,25 @@ class LumaInterpreter:
             "INTERNAL",
         )
 
+        def swap(a: str, b: str):
+            a = a.strip()
+            b = b.strip()
+            if a in self.env[-1]:
+                if b in self.env[-1]:
+                    pass
+                else:
+                    self.throw(self.env[0]['syntaxError'], f'Cannot swap {a} with {b}: {b} is not a local variable')
+            else:
+                self.throw(self.env[0]['syntaxError'], f'Cannot swap {a} with {b}: {a} is not a local variable')
+    
+        self.env[0]["swap"] = self.LumaFunction(
+            "swap",
+            [{"name": "a"}, {"name": "b"}],
+            swap,
+            0,
+            "INTERNAL",
+        )
+
         module = self.LumaClass("module")
         self.env[0]["module"] = module
 
@@ -878,11 +897,12 @@ class LumaInterpreter:
                 break
         return tokens
 
-    def extractargs(self, line: str, funcname):
+    def extractargs(self, line: str, funcname: str):
         rawargs = line[len(funcname) + 1 : -1].strip()
         if rawargs == "":
             return []
         splitted = LumaInterpreter.smrtsplt(rawargs, ",")
+        if funcname == 'swap': return splitted
         return [self.evaluate(arg.strip()) for arg in splitted]
 
     @staticmethod

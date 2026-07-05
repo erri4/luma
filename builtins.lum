@@ -57,27 +57,19 @@ class int (valuedObject){
         return new bool(nativecode("bool(value)", {"value": this.value}))
     }
 
-    function @equal(other){
-        return new bool(nativecode("thisval == otherval", {"thisval": this.value, "otherval": other.value}))
-    }
-
-    function @nequal(other){
-        return new bool(nativecode("thisval != otherval", {"thisval": this.value, "otherval": other.value}))
-    }
-
-    function @lequal(other){
+    function @leq(other){
         return new bool(nativecode("thisval <= otherval", {"thisval": this.value, "otherval": other.value}))
     }
 
-    function @lesst(other){
+    function @lt(other){
         return new bool(nativecode("thisval < otherval", {"thisval": this.value, "otherval": other.value}))
     }
 
-    function @greatert(other){
+    function @gt(other){
         return new bool(nativecode("thisval > otherval", {"thisval": this.value, "otherval": other.value}))
     }
 
-    function @gequal(other){
+    function @geq(other){
         return new bool(nativecode("thisval >= otherval", {"thisval": this.value, "otherval": other.value}))
     }
 
@@ -172,27 +164,19 @@ class float (valuedObject){
         return new float(nativecode("thisval * otherval", {"thisval": this.value, "otherval": other.value}))
     }
 
-    function @equal(other){
-        return new bool(nativecode("thisval == otherval", {"thisval": this.value, "otherval": other.value}))
-    }
-
-    function @nequal(other){
-        return new bool(nativecode("thisval != otherval", {"thisval": this.value, "otherval": other.value}))
-    }
-
-    function @lequal(other){
+    function @leq(other){
         return new bool(nativecode("thisval <= otherval", {"thisval": this.value, "otherval": other.value}))
     }
 
-    function @lesst(other){
+    function @lt(other){
         return new bool(nativecode("thisval < otherval", {"thisval": this.value, "otherval": other.value}))
     }
 
-    function @greatert(other){
+    function @gt(other){
         return new bool(nativecode("thisval > otherval", {"thisval": this.value, "otherval": other.value}))
     }
 
-    function @gequal(other){
+    function @geq(other){
         return new bool(nativecode("thisval >= otherval", {"thisval": this.value, "otherval": other.value}))
     }
 
