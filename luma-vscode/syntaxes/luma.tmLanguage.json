@@ -11,13 +11,13 @@
     "keywords": {
       "patterns": [{
         "name": "keyword.control.luma",
-        "match": "\\b(set|to|function|constructor|class|import|if|extend|elseif|else|as|try|catch|while|stop|again|return|throw|delete|new|lambda)\\b"
+        "match": "\\b(set|to|function|constructor|class|import|if|extend|elseif|else|as|try|catch|while|stop|again|return|throw)\\b"
       }]
     },
     "types": {
       "patterns": [{
         "name": "storage.type.luma",
-        "match": "\\b(this|true|false|null)\\b"
+        "match": "\\b(this|true|false|null|lambda|typeof|delete|new)\\b"
       }]
     },
     "strings": {

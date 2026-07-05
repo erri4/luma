@@ -104,6 +104,7 @@ class LumaInterpreter:
         "delete",
         "new",
         "lambda",
+        "typeof",
     ]
     tb: list[tuple[int, str, str]] = []
     overloads: dict[str, list[Callable]] = {}
@@ -149,13 +150,13 @@ class LumaInterpreter:
         self.env[0]["bool"] = boolcls
         strcls = self.LumaClassStr("str")
         self.env[0]["str"] = strcls
-        BaseError = self.LumaClass("baseError")
+        baseError = self.LumaClass("baseError")
 
         def constructor(msg, this=None):
             setattr(this, "msg", msg)
             setattr(this, "tb", LumaInterpreter().traceback())
 
-        BaseError.children["constructor"] = LumaInterpreter.LumaFunction(
+        baseError.children["constructor"] = LumaInterpreter.LumaFunction(
             "constructor",
             [
                 {"name": "this"},
@@ -169,7 +170,7 @@ class LumaInterpreter:
         def trigger(this=None):
             raise LumaInterpreter.LumaException(this)
 
-        BaseError.children["trigger"] = LumaInterpreter.LumaFunction(
+        baseError.children["trigger"] = LumaInterpreter.LumaFunction(
             "trigger",
             [{"name": "this"}],
             trigger,
@@ -180,14 +181,14 @@ class LumaInterpreter:
         def stringify(this=None):
             return getattr(this, "msg")
 
-        BaseError.children["@stringify"] = LumaInterpreter.LumaFunction(
+        baseError.children["@stringify"] = LumaInterpreter.LumaFunction(
             "@stringify",
             [{"name": "this"}],
             stringify,
             0,
             "INTERNAL",
         )
-        self.env[0]["baseError"] = BaseError
+        self.env[0]["baseError"] = baseError
 
         self.filename = filename
         self.scopes.append(program)
@@ -1084,8 +1085,8 @@ class LumaInterpreter:
                         self.env[0]["typeError"],
                         f"unsupported operator: unable to perform operator {op} on types '{LumaInterpreter.namourtype(self.evaluate(f'{terms[0]}'))}' and '{LumaInterpreter.namourtype(self.evaluate(f'{op_token.join(terms[1:])}'))}'",
                     )
-        if expr[0] == "&":
-            data: LumaInterpreter.LumaClass = self.evaluate(expr[1:])
+        if firstword == "typeof":
+            data: LumaInterpreter.LumaClass = self.evaluate(expr[len('typeof') + 1:].strip())
             if type(data) is LumaInterpreter.LumaClass:
                 return self.env[0]["classType"]
             return (
