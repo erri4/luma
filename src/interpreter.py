@@ -529,6 +529,17 @@ class LumaInterpreter:
         self.scopes.pop()
         return res
 
+    def find(self, line: str):
+        stk = 1
+        for i in range(len(line)):
+            char = line[i]
+            if char == ')': stk -= 1
+            if char == '(': stk += 1
+            if stk == 0: return i
+            if stk < 0:
+                self.throw(self.env[0]['syntaxError'], "expected ')'")
+        self.throw(self.env[0]['syntaxError'], "expected ')'")
+
     def process(
         self,
         line: str,
@@ -738,7 +749,7 @@ class LumaInterpreter:
                 if not catched:
                     raise e from None
         elif firstword == "if":
-            condition = line[4 : line.find("){")]
+            condition = line[4:4+self.find(line[4:])]
             body = ""
             for subline in program.splitlines()[linenum:].copy():
                 if subline:
@@ -808,7 +819,7 @@ class LumaInterpreter:
                     self.tb.pop()
             return r
         elif firstword == "while":
-            condition = line[7 : line.find("){")]
+            condition = line[7:7+self.find(line[7:])]
             body = ""
             for subline in program.splitlines()[linenum:]:
                 if subline != "":
