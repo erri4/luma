@@ -10,8 +10,6 @@ import os
 r"""
 TODO:
 OPTIMIZE
-. fix process inline parentheses end finding
-
 . pmfl
 
 compile:
@@ -866,17 +864,6 @@ class LumaInterpreter:
     ) -> None:
         exc.instance([msg]).callmethod("trigger", [])
 
-    def processcondition(self, condition: str):
-        cond = self.splitbyop(condition)
-        r: list[EvaluatedType | str] = []
-        for part in cond:
-            if part in self.LOGICAL_OPERATORS:
-                r.append(part)
-            else:
-                epart = self.evaluate(part)
-                r.append(epart)
-        return r
-
     def parse_args(self, input_string: str):
         if input_string == "":
             return []
@@ -891,22 +878,6 @@ class LumaInterpreter:
                 result.append({"name": token})
 
         return result
-
-    def splitbyop(self, expr: str):
-        tokens = []
-        while expr:
-            match = re.search(self.LOGICAL_OP_RE, expr)
-            if match:
-                before = expr[: match.start()].strip()
-                if before:
-                    tokens.append(before)
-                tokens.append(match.group(1))
-                expr = expr[match.end() :]
-            else:
-                if expr.strip():
-                    tokens.append(expr.strip())
-                break
-        return tokens
 
     def extractargs(self, line: str, funcname: str):
         rawargs = line[len(funcname) + 1 : -1].strip()
@@ -1326,19 +1297,19 @@ class LumaInterpreter:
             )
 
         def __lbool__(self):
-            return False
+            return LumaInterpreter().env[0]["bool"].instance([False])
 
         def __repr__(self):
             return f"<class {self.actualname}>"
 
         def __eq__(self, other: "EvaluatedType | LumaInterpreter.LumaClass") -> bool:
             if type(other) is LumaInterpreter.LumaClass:
-                return other.actualname == self.actualname
-            return False
+                return LumaInterpreter().env[0]["bool"].instance([other.actualname == self.actualname])
+            return LumaInterpreter().env[0]["bool"].instance([False])
 
         def call(self, args):
             LumaInterpreter.throw(
-                LumaInterpreter().env["syntaxError"],
+                LumaInterpreter().env[0]["syntaxError"],
                 "Cannot call a class: must use 'new'",
             )
 
@@ -2012,7 +1983,7 @@ class LumaInterpreter:
         def __bool__(self):
             if self.typename == "bool":
                 return self.value
-            return bool(super())
+            return self.__lbool__().value
 
         def __eq__(
             self, other: EvaluatedType
