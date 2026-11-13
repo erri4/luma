@@ -1,11 +1,12 @@
 from LumaExtBundle import Raw, DictToDict, ParseMe, Function, Class
+from LumaTypes import LumaInterpreter
 
 print("This is an example python extention. This has no (practical or not) use.")
 
 def func(arg=""):
     return ParseMe({"type": "str", "args": [Raw("stringhbhbiyb" + str(arg))]})
 
-def funccls(this=None):
+def funccls(this: LumaInterpreter.InstancedLumaObject = None):
     print("this." + this.value)
 
 LumaExtension = {
