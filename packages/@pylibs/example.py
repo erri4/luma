@@ -1,4 +1,4 @@
-from LumaExtBundle import Raw, DictToDict, ParseMe, Function
+from LumaExtBundle import Raw, DictToDict, ParseMe, Function, Class
 
 print("This is an example python extention. This has no (practical or not) use.")
 
@@ -21,14 +21,6 @@ LumaExtension = {
             )
         ],
     },
-    "mycls": {
-        "type": "classType",
-        "name": "mycls",
-        "constructor": None,
-        "functions": [Function(funccls, [])],
-        "classes": [],
-        "vars": [],
-        "parent": "str",
-    },
+    "mycls": Class('mycls', None, [Function(funccls, [])], parent="str"),
     "func": Function(func, [{"name": "arg", "default": Raw("")}]),
 }
