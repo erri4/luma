@@ -1,9 +1,10 @@
+import "lib:math.lum" as math
+
 if (@main){
     set i to 0
     show(i)
     i++
     show(i)
-    import "lib:math.lum" as math
     show(math.pi)
     show(math.cos(math.pi))
     if (math.cos(math.pi) == -1.0){
