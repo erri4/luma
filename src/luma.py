@@ -7,7 +7,7 @@ import os
 import subprocess
 
 
-def run_installer():
+def run_installer(): # DO NOT USE YET
     if os.name == "nt":
         installer_path = os.path.join("C:\\PyLuma", "installer.exe")
     elif os.name == "posix":
@@ -31,6 +31,9 @@ def run_installer():
     sys.exit()
 
 if __name__ == "__main__":
+    sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+    sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
+
     parser = argparse.ArgumentParser(description="Luma launcher that runs a script.")
     parser.add_argument("script", nargs="?", help="Path to the Luma script to run")
 

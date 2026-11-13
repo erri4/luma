@@ -1,18 +1,24 @@
-set i to 0
-show(i)
-i++
-show(i)
-import "lib:math.lum" as math
-show(math.pi)
-show(math.cos(math.pi))
-if (math.cos(math.pi) == -1.0){
-    show("hello")
-}
+if (@main){
+    set i to 0
+    show(i)
+    i++
+    show(i)
+    import "lib:math.lum" as math
+    show(math.pi)
+    show(math.cos(math.pi))
+    if (math.cos(math.pi) == -1.0){
+        show("hello")
+    }
+    show(true == true)
+    show(false == false)
 
-set lst to []
-show(lst)
-lst.add(123)
-lst.add("gagagag")
-show(lst)
-lst.clear()
-show(lst)
+    set lst to []
+    show(lst)
+    lst.add(123)
+    lst.add("gagagag")
+    show(lst)
+    lst.clear()
+    show(lst)
+    show(@file)
+    show(@main)
+}

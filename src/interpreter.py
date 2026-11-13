@@ -2,13 +2,15 @@ from typing import Any, Callable, Union, LiteralString
 import importlib.util
 import operator
 import sys
-import json
 import re
 import os
 
 
 r"""
 TODO:
+installer/shit
+fix?
+make null, true, false internal singletons // why does it matter?
 OPTIMIZE
 . pmfl
 
@@ -75,7 +77,6 @@ class LumaInterpreter:
         "&&": operator.and_,
         "||": operator.or_,
     }
-    PY_IMPL_CLASSES = ["bool", "dict", "str"]
     NUMBER_RE = re.compile(r"^[+-]?\d+(\.\d+)?$")
     SAVED_KEYWORDS: list[str] = [
         "set",
@@ -116,102 +117,12 @@ class LumaInterpreter:
         return cls._instance
 
     def run(self, program: str, filename: str):
-        def nativecode(
-            pytext: LumaInterpreter.InstancedLumaObject["str"],
-            kwargs: LumaInterpreter.InstancedLumaObject | None = None,
-        ):
-            sys.path.append(r"C:\PyLuma")
-            sys.path.append(os.path.expanduser("~/PyLuma"))
-            globs = {"filename": self.filename}
-            data: dict[str | LumaInterpreter.InstancedLumaObject["str"], Any] = (
-                kwargs.value if kwargs else {}
-            )
-            for key in list(data.keys()):
-                data[str(key)] = data[key]
-            r = eval(str(pytext).replace("\n", "\\n"), globs | data)
-            return r
-
-        self.env[0]["nativecode"] = self.LumaFunction(
-            "nativecode",
-            [{"name": "pytext"}, {"name": "kwargs", "default": None}],
-            nativecode,
-            0,
-            "INTERNAL",
-        )
-
-        def swap(a: str, b: str):
-            a = a.strip()
-            b = b.strip()
-            if a in self.env[-1]:
-                if b in self.env[-1]:
-                    pass
-                else:
-                    self.throw(self.env[0]['syntaxError'], f'Cannot swap {a} with {b}: {b} is not a local variable')
-            else:
-                self.throw(self.env[0]['syntaxError'], f'Cannot swap {a} with {b}: {a} is not a local variable')
-    
-        self.env[0]["swap"] = self.LumaFunction(
-            "swap",
-            [{"name": "a"}, {"name": "b"}],
-            swap,
-            0,
-            "INTERNAL",
-        )
-
-        module = self.LumaClass("module")
-        self.env[0]["module"] = module
-
-        dictcls = self.LumaClassDict("dict")
-        self.env[0]["dict"] = dictcls
-        boolcls = self.LumaClassBool("bool")
-        self.env[0]["bool"] = boolcls
-        strcls = self.LumaClassStr("str")
-        self.env[0]["str"] = strcls
-        baseError = self.LumaClass("baseError")
-
-        def constructor(msg, this=None):
-            setattr(this, "msg", msg)
-            setattr(this, "tb", LumaInterpreter().traceback())
-
-        baseError.children["constructor"] = LumaInterpreter.LumaFunction(
-            "constructor",
-            [
-                {"name": "this"},
-                {"name": "msg", "default": self.env[0]["str"].instance([""])},
-            ],
-            constructor,
-            0,
-            "INTERNAL",
-        )
-
-        def trigger(this=None):
-            raise LumaInterpreter.LumaException(this)
-
-        baseError.children["trigger"] = LumaInterpreter.LumaFunction(
-            "trigger",
-            [{"name": "this"}],
-            trigger,
-            0,
-            "INTERNAL",
-        )
-
-        def stringify(this=None):
-            return getattr(this, "msg")
-
-        baseError.children["@stringify"] = LumaInterpreter.LumaFunction(
-            "@stringify",
-            [{"name": "this"}],
-            stringify,
-            0,
-            "INTERNAL",
-        )
-        self.env[0]["baseError"] = baseError
-
+        self.runext("builtins:@pylibs/lumastring.py") # so I could import in luma
         self.filename = filename
         self.scopes.append(program)
-        self.runimport(":builtins.lum", None)
+        self.runimport("builtins:builtins.lum", None)
         try:
-            self.runsubprogram(program, infunc=False, file=self.filename)
+            self.runsubprogram(program, infunc=False, file=self.filename, main = True)
         except LumaInterpreter.LumaException as e:
             print(e)
 
@@ -325,7 +236,7 @@ class LumaInterpreter:
                 if name is None:
                     self.runsubprogram(subprogram, infunc=False, file=module)
                 else:
-                    self.env[0]["module"] = LumaInterpreter.LumaClass("module")
+                    self.env[0]["module"] = LumaInterpreter.LumaClass("module") # clean
                     self.env[0]["module"].children["constructor"] = (
                         LumaInterpreter.LumaFunction(
                             "constructor", [], "", 0, "INTERNAL"
@@ -333,12 +244,14 @@ class LumaInterpreter:
                     )
                     if Object is None:
                         Object = self.env[0]
+                    self.env.append({})
                     self.runsubprogram(
                         subprogram,
                         infunc=False,
                         file=module,
                         Object=self.env[0]["module"],
                     )
+                    self.env.pop()
                     Object[name] = self.env[0]["module"].instance([])
         except FileNotFoundError:
             LumaInterpreter.throw(
@@ -391,7 +304,7 @@ class LumaInterpreter:
         if type(token) is dict:
             if token.get("type", None) == "classType":
                 thecls = self.LumaClass(token["name"], [])
-                if token["parent"]:
+                if token.get("parent", None):
                     parent = token["parent"]
                     thecls.children = self.env[0][parent].children.copy()
                     thecls.parents = self.env[0][parent].parents.copy()
@@ -462,10 +375,9 @@ class LumaInterpreter:
                 tp = self.evaluate(token.get("type", None))
             except Exception:
                 pass
-            if tp:
+            if tp is not None:
                 if (
                     type(tp) is LumaInterpreter.LumaClass
-                    or token.get("type", None) in self.PY_IMPL_CLASSES
                 ):
                     r = tp.instance([self.parse_py(tk, full) for tk in token["args"]])
                     return r
@@ -486,6 +398,7 @@ class LumaInterpreter:
         realfunc: bool = False,
         line1: int = 1,
         file: str = "",
+        main: bool = False,
     ):
         if file == "":
             raise
@@ -498,6 +411,12 @@ class LumaInterpreter:
                 subprogram[i] = LumaInterpreter.removetab(subprogram[i])
         subprogram = "\n".join(subprogram)
         self.scopes.append(subprogram)
+        self.env[-1]['@file'] = self.env[0]['str'].instance([file])
+        try:
+            if '@main' in self.env[-1]:
+                self.env[-1]['@main'] = self.env[0]['bool'].instance([main or self.env[-1]['@main'].value])
+            else: self.env[-1]['@main'] = self.env[0]['bool'].instance([main])
+        except KeyError: pass
         res = None
         li = 0
         for subline in subprogram.splitlines():
@@ -537,6 +456,11 @@ class LumaInterpreter:
             if stk < 0:
                 self.throw(self.env[0]['syntaxError'], "expected ')'")
         self.throw(self.env[0]['syntaxError'], "expected ')'")
+
+    @staticmethod
+    def log(msg: str):
+        with open('./log.txt', 'a') as f:
+            f.write(f'\n{msg}')
 
     def process(
         self,
@@ -1147,7 +1071,7 @@ class LumaInterpreter:
                 self.env[0][expr[:-2]] = obj.callmethod("@subtraction", [one])
                 return self.env[0][expr[:-2]]
             else:
-                self.evaluate(expr[:-2])
+                return self.evaluate(expr[:-2])
         elif LumaInterpreter.is_obj_call(expr):
             splitted = LumaInterpreter.smrtsplt(expr, "(")
             prefix = "(".join(splitted[0:-1])
@@ -1206,7 +1130,7 @@ class LumaInterpreter:
             instancename = ".".join(dotparts[0:-1])
             propertyname = dotparts[-1]
             instance: LumaInterpreter.InstancedLumaObject = self.evaluate(instancename)
-            if instance:
+            if instance is not None:
                 if propertyname in instance.children.keys():
                     r = instance.children[propertyname]
                     if isinstance(r, LumaInterpreter.LumaFunction):
@@ -1215,7 +1139,7 @@ class LumaInterpreter:
                 else:
                     LumaInterpreter.throw(
                         self.env[0]["typeError"],
-                        f"{instancename} (type {self.evaluate(f'&{instancename}')}) has no attribute '{propertyname}'",
+                        f"{instancename} (type {self.namourtype(instance)} has no attribute '{propertyname}'",
                     )
             else:
                 LumaInterpreter.throw(
@@ -1250,12 +1174,6 @@ class LumaInterpreter:
             ) -> "LumaInterpreter.InstancedLumaObject[bool]":
                 if type(other) is not LumaInterpreter.InstancedLumaObject:
                     return LumaInterpreter().env[0]["bool"].instance([False])
-                if this.typename in LumaInterpreter().PY_IMPL_CLASSES:
-                    return (
-                        LumaInterpreter()
-                        .env[0]["bool"]
-                        .instance([this.value == other.value])
-                    )
                 r = (
                     this.children["@eq"].run([other], this)
                     if "@eq" in this.children
@@ -1376,6 +1294,8 @@ class LumaInterpreter:
             for key in added_keys:
                 varsholder.pop(key, None)
             interpreter.env.pop()
+            if type(r).__name__ == 'ParseMe':
+                r = LumaInterpreter().parse_py(r.data)
             return r
 
         def call(self, args):
@@ -1420,417 +1340,6 @@ class LumaInterpreter:
                 )
 
             return result
-
-    class LumaClassDict(LumaClass):
-        def __init__(self, name: str, parents: list[str] = ["Object"]):
-            super().__init__(name, parents)
-
-            def constructor(
-                value: dict, this: "LumaInterpreter.InstancedLumaObject | None" = None
-            ):
-                this.value = value.copy()
-
-            self.children["constructor"] = LumaInterpreter.LumaFunction(
-                "constructor",
-                [{"name": "this"}, {"name": "value"}],
-                constructor,
-                0,
-                "INTERNAL",
-            )
-
-            def at(
-                pos, this: "LumaInterpreter.InstancedLumaObject | None" = None
-            ) -> Any:
-                return this.value[pos]
-
-            self.children["@at"] = LumaInterpreter.LumaFunction(
-                "@at",
-                [{"name": "this"}, {"name": "pos"}],
-                at,
-                0,
-                "INTERNAL",
-            )
-
-            def del_(
-                pos, this: "LumaInterpreter.InstancedLumaObject | None" = None
-            ) -> Any:
-                del this.value[pos]
-
-            self.children["del_"] = LumaInterpreter.LumaFunction(
-                "del_",
-                [{"name": "this"}, {"name": "pos"}],
-                del_,
-                0,
-                "INTERNAL",
-            )
-
-            def intify(
-                this: "LumaInterpreter.InstancedLumaObject | None" = None,
-            ) -> "LumaInterpreter.InstancedLumaObject":
-                interpreter = LumaInterpreter()
-                return interpreter.env[0]["int"].instance([len(this.value)])
-
-            self.children["@int"] = LumaInterpreter.LumaFunction(
-                "@int",
-                [
-                    {"name": "this"},
-                ],
-                intify,
-                0,
-                "INTERNAL",
-            )
-
-            def dctset(
-                pos, value, this: "LumaInterpreter.InstancedLumaObject | None" = None
-            ) -> None:
-                this.value[pos] = value
-
-            self.children["@set"] = LumaInterpreter.LumaFunction(
-                "@set",
-                [{"name": "this"}, {"name": "pos"}, {"name": "value"}],
-                dctset,
-                0,
-                "INTERNAL",
-            )
-
-            def delat(
-                pos, this: "LumaInterpreter.InstancedLumaObject | None" = None
-            ) -> None:
-                del this.value[pos]
-
-            self.children["@del"] = LumaInterpreter.LumaFunction(
-                "@del",
-                [{"name": "this"}, {"name": "pos"}],
-                delat,
-                0,
-                "INTERNAL",
-            )
-
-            def stringify(
-                this: "LumaInterpreter.InstancedLumaObject | None" = None,
-            ) -> "LumaInterpreter.InstancedLumaObject":
-                interpreter = LumaInterpreter()
-                dct = "{"
-                items = list(this.value.items())
-                for i in range(len(items)):
-                    k, v = items[i][0], items[i][1]
-                    dct += (
-                        repr(k)
-                        + ": "
-                        + repr(v)
-                        + (", " if i + 1 in range(len(items)) else "")
-                    )
-                dct += "}"
-                return interpreter.env[0]["str"].instance(
-                    [dct],
-                )
-
-            self.children["@stringify"] = LumaInterpreter.LumaFunction(
-                "@stringify",
-                [
-                    {"name": "this"},
-                ],
-                stringify,
-                0,
-                "INTERNAL",
-            )
-
-            def repre(
-                this: "LumaInterpreter.InstancedLumaObject | None" = None,
-            ) -> "LumaInterpreter.InstancedLumaObject['str']":
-                interpreter = LumaInterpreter()
-                dct = "{"
-                items = list(this.value.items())
-                for i in range(len(items)):
-                    k, v = items[i][0], items[i][1]
-                    dct += (
-                        repr(k)
-                        + ": "
-                        + repr(v)
-                        + (", " if i + 1 in range(len(items)) else "")
-                    )
-                dct += "}"
-                return interpreter.env[0]["str"].instance(
-                    [dct],
-                )
-
-            self.children["@repr"] = LumaInterpreter.LumaFunction(
-                "@repr",
-                [
-                    {"name": "this"},
-                ],
-                repre,
-                0,
-                "INTERNAL",
-            )
-
-            def length(
-                this: "LumaInterpreter.InstancedLumaObject['dict'] | LumaInterpreter.InstancedLumaObject['list'] | None" = None,
-            ):
-                int_ = LumaInterpreter().env[0]["int"]
-                obj = int_.instance([len(this.value)])
-                return obj
-
-            self.children["len"] = LumaInterpreter.LumaFunction(
-                "len",
-                [
-                    {"name": "this"},
-                ],
-                length,
-                0,
-                "INTERNAL",
-            )
-
-            def lbool(
-                this: "LumaInterpreter.InstancedLumaObject['dict'] | LumaInterpreter.InstancedLumaObject['list'] | None" = None,
-            ):
-                return (
-                    LumaInterpreter().env[0]["bool"].instance([bool(len(this.value))])
-                )
-
-            self.children["@bool"] = LumaInterpreter.LumaFunction(
-                "@bool",
-                [
-                    {"name": "this"},
-                ],
-                lbool,
-                0,
-                "INTERNAL",
-            )
-
-    class LumaClassBool(LumaClass):
-        def __init__(self, name: str, parents: list[str] = ["Object"]):
-            super().__init__(name, parents)
-
-            def constructor(
-                value: EvaluatedType,
-                this: "LumaInterpreter.InstancedLumaObject['bool'] | None" = None,
-            ) -> None:
-                if type(value) is LumaInterpreter.InstancedLumaObject:
-                    this.value = bool(LumaInterpreter.LumaClassBool.lbool(value))
-                else:
-                    this.value = bool(value)
-
-            self.children["constructor"] = LumaInterpreter.LumaFunction(
-                "constructor",
-                [{"name": "this"}, {"name": "value"}],
-                constructor,
-                0,
-                "INTERNAL",
-            )
-
-            def intify(
-                this: "LumaInterpreter.InstancedLumaObject | None" = None,
-            ) -> "LumaInterpreter.InstancedLumaObject":
-                interpreter = LumaInterpreter()
-                return interpreter.env[0]["int"].instance([int(this.value)])
-
-            self.children["@int"] = LumaInterpreter.LumaFunction(
-                "@int",
-                [
-                    {"name": "this"},
-                ],
-                intify,
-                0,
-                "INTERNAL",
-            )
-
-            def stringify(
-                this: "LumaInterpreter.InstancedLumaObject['bool'] | None" = None,
-            ) -> "LumaInterpreter.InstancedLumaObject['str']":
-                interpreter = LumaInterpreter()
-                return interpreter.env[0]["str"].instance([str(this.value).lower()])
-
-            self.children["@stringify"] = LumaInterpreter.LumaFunction(
-                "@stringify",
-                [
-                    {"name": "this"},
-                ],
-                stringify,
-                0,
-                "INTERNAL",
-            )
-
-            def selfbool(
-                this: "LumaInterpreter.InstancedLumaObject | None" = None,
-            ) -> "LumaInterpreter.InstancedLumaObject":
-                return this
-
-            self.children["@bool"] = LumaInterpreter.LumaFunction(
-                "@bool",
-                [
-                    {"name": "this"},
-                ],
-                selfbool,
-                0,
-                "INTERNAL",
-            )
-
-            def repre(
-                this: "LumaInterpreter.InstancedLumaObject | None" = None,
-            ) -> "LumaInterpreter.InstancedLumaObject":
-                interpreter = LumaInterpreter()
-                return interpreter.env[0]["str"].instance([str(this.value).lower()])
-
-            self.children["@repr"] = LumaInterpreter.LumaFunction(
-                "@repr",
-                [
-                    {"name": "this"},
-                ],
-                repre,
-                0,
-                "INTERNAL",
-            )
-
-        @staticmethod
-        def lbool(
-            value: "LumaInterpreter.InstancedLumaObject",
-        ) -> "Any | LumaInterpreter.InstancedLumaObject":
-            return value.__lbool__()
-
-    class LumaClassStr(LumaClass):
-        def __init__(self, name: str, parents: list[str] = ["Object"]):
-            super().__init__(name, parents)
-
-            def constructor(
-                value, this: "LumaInterpreter.InstancedLumaObject | None" = None
-            ):
-                if type(value) is LumaInterpreter.InstancedLumaObject:
-                    if value.typename == "str":
-                        this.value = value.value
-                        return
-                this.value = str(value)
-
-            self.children["constructor"] = LumaInterpreter.LumaFunction(
-                "constructor",
-                [{"name": "this"}, {"name": "value"}],
-                constructor,
-                0,
-                "INTERNAL",
-            )
-
-            def add(other, this: "LumaInterpreter.InstancedLumaObject | None" = None):
-                interpreter: LumaInterpreter = LumaInterpreter()
-                return interpreter.env[0]["str"].instance([this.value + str(other)])
-
-            self.children["@addition"] = LumaInterpreter.LumaFunction(
-                "@addition",
-                [{"name": "this"}, {"name": "other"}],
-                add,
-                0,
-                "INTERNAL",
-            )
-
-            def intify(
-                this: "LumaInterpreter.InstancedLumaObject | None" = None,
-            ) -> "LumaInterpreter.InstancedLumaObject":
-                interpreter = LumaInterpreter()
-                return interpreter.env[0]["int"].instance([int(this.value)])
-
-            self.children["@int"] = LumaInterpreter.LumaFunction(
-                "@int",
-                [
-                    {"name": "this"},
-                ],
-                intify,
-                0,
-                "INTERNAL",
-            )
-
-            def at(
-                pos: EvaluatedType, this: "LumaInterpreter.InstancedLumaObject" = None
-            ) -> "LumaInterpreter.InstancedLumaObject":
-                interpreter: LumaInterpreter = LumaInterpreter()
-                if pos.typename == "int":
-                    return interpreter.env[0]["str"].instance(
-                        [this.value[pos.children["value"]]]
-                    )
-                else:
-                    interpreter.throw(
-                        interpreter.env[0]["typeError"],
-                        "str key must be an integer",
-                        "idk",
-                        "idk",
-                        interpreter.filename,
-                    )
-
-            self.children["@at"] = LumaInterpreter.LumaFunction(
-                "@at",
-                [{"name": "this"}, {"name": "pos"}],
-                at,
-                0,
-                "INTERNAL",
-            )
-
-            def stringify(
-                this: "LumaInterpreter.InstancedLumaObject | None" = None,
-            ) -> "LumaInterpreter.InstancedLumaObject":
-                return LumaInterpreter().env[0]["str"].instance([this.value])
-
-            self.children["@stringify"] = LumaInterpreter.LumaFunction(
-                "@stringify",
-                [
-                    {"name": "this"},
-                ],
-                stringify,
-                0,
-                "INTERNAL",
-            )
-
-            def repre(
-                this: "LumaInterpreter.InstancedLumaObject | None" = None,
-            ) -> "LumaInterpreter.InstancedLumaObject":
-                if '"' in this.value and "'" not in this.value:
-                    return (
-                        LumaInterpreter()
-                        .env[0]["str"]
-                        .instance(["'" + this.value + "'"])
-                    )
-                if "'" in this.value and '"' not in this.value:
-                    return (
-                        LumaInterpreter()
-                        .env[0]["str"]
-                        .instance(['"' + this.value + '"'])
-                    )
-                return (
-                    LumaInterpreter().env[0]["str"].instance([json.dumps(this.value)])
-                )
-
-            self.children["@repr"] = LumaInterpreter.LumaFunction(
-                "@repr",
-                [
-                    {"name": "this"},
-                ],
-                repre,
-                0,
-                "INTERNAL",
-            )
-
-            def length(this: "LumaInterpreter.InstancedLumaObject | None" = None):
-                return LumaInterpreter().env[0]["int"].instance([len(this.value)])
-
-            self.children["len"] = LumaInterpreter.LumaFunction(
-                "len",
-                [
-                    {"name": "this"},
-                ],
-                length,
-                0,
-                "INTERNAL",
-            )
-
-            def lbool(this: "LumaInterpreter.InstancedLumaObject | None" = None):
-                return LumaInterpreter().env[0]["bool"].instance([len(this.value)])
-
-            self.children["@bool"] = LumaInterpreter.LumaFunction(
-                "@bool",
-                [
-                    {"name": "this"},
-                ],
-                lbool,
-                0,
-                "INTERNAL",
-            )
 
     class InstancedLumaObject[ClassName: LiteralString]:
         def __init__(
@@ -1878,15 +1387,6 @@ class LumaInterpreter:
                     "INTERNAL",
                 )
             if interpreter is not None:
-                if self.typename in interpreter.PY_IMPL_CLASSES:
-                    self.value: (
-                        dict[
-                            EvaluatedType,
-                            EvaluatedType,
-                        ]
-                        | bool
-                        | str
-                    )
                 self.instance(args)
                 return
             raise TypeError("Could not find an active interpreter.")
@@ -1894,6 +1394,16 @@ class LumaInterpreter:
         def call(self, args, line):
             r = self.children["@call"].run(args, self, callline=line)
             return r
+
+        def expose(self, what: str):
+            match what:
+                case 'env': return LumaInterpreter().env
+                case 'throw': return LumaInterpreter().throw
+                case 'filename': return LumaInterpreter().filename
+                case 'traceback': return LumaInterpreter().traceback
+                case 'LumaException': return LumaInterpreter().LumaException
+                case 'LumaFunction': return LumaInterpreter().LumaFunction
+                case 'InstancedLumaObject': return LumaInterpreter().InstancedLumaObject
 
         def tie(self, method: str):
             def wrapper(**args):
@@ -1948,7 +1458,7 @@ class LumaInterpreter:
             r = self.children["@int"].run([], self)
             if type(r) is LumaInterpreter.InstancedLumaObject:
                 if r.typename == "int":
-                    r = r.children["value"]
+                    r = r.value
                 else:
                     interpreter = LumaInterpreter()
                     LumaInterpreter.throw(
@@ -1961,7 +1471,7 @@ class LumaInterpreter:
             r = self.children["@float"].run([], self)
             if type(r) is LumaInterpreter.InstancedLumaObject:
                 if r.typename == "float":
-                    r = r.children["value"]
+                    r = r.value
                 else:
                     interpreter = LumaInterpreter()
                     LumaInterpreter.throw(
@@ -1980,22 +1490,24 @@ class LumaInterpreter:
                 f"@bool must return a bool and not {LumaInterpreter.namourtype(r)}",
             )
 
+        def __dict__(self) -> "Any | LumaInterpreter.InstancedLumaObject":
+            r = self.children["@dict"].run([], self)
+            if type(r) is LumaInterpreter.InstancedLumaObject:
+                if r.typename == "dict":
+                    return r.value
+            LumaInterpreter.throw(
+                LumaInterpreter().env[0]["typeError"],
+                f"@dict must return a dict and not {LumaInterpreter.namourtype(r)}",
+            )
+
         def __bool__(self):
-            if self.typename == "bool":
-                return self.value
-            return self.__lbool__().value
+            return self.__lbool__()
 
         def __eq__(
             self, other: EvaluatedType
         ) -> "LumaInterpreter.InstancedLumaObject[bool]":
             if type(other) is not LumaInterpreter.InstancedLumaObject:
                 return LumaInterpreter().env[0]["bool"].instance([False])
-            if self.typename in LumaInterpreter().PY_IMPL_CLASSES:
-                return (
-                    LumaInterpreter()
-                    .env[0]["bool"]
-                    .instance([self.value == other.value])
-                )
             r = (
                 self.children["@eq"].run([other], self)
                 if "@eq" in self.children
@@ -2008,15 +1520,9 @@ class LumaInterpreter:
         def __ne__(self, other):
             if type(other) is not LumaInterpreter.InstancedLumaObject:
                 return LumaInterpreter().env[0]["bool"].instance([True])
-            if self.typename in LumaInterpreter().PY_IMPL_CLASSES:
-                return (
-                    LumaInterpreter()
-                    .env[0]["bool"]
-                    .instance([self.value != other.value])
-                )
             r = (
-                self.children["@eq"].run([other], self)
-                if "@eq" in self.children
+                self.children["@neq"].run([other], self)
+                if "@neq" in self.children
                 else (
                     self.typename == other.typename and self.children == other.children
                 )
