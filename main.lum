@@ -1,4 +1,10 @@
+extend "packages:forloops.py"
 import "lib:math.lum" as math
+import "lib:files.lum"
+
+class test{
+    set x to 123
+}
 
 if (@main){
     set i to 0
@@ -22,4 +28,30 @@ if (@main){
     show(lst)
     show(@file)
     show(@main)
+    set x to 45
+    if (x == 31){
+        show("case 1")
+    }
+    elseif (x == 45){
+        show("case 2")
+    }
+    else {
+        show("case 3")
+    }
+    show((new test()).x)
+}
+try{
+    throw new baseError("asd")
+}
+catch (baseError as abc){
+    show("b e" + new str(abc))
+}
+catch (syntaxError){
+    show(123123)
+}
+
+set f to new file("./log.txt")
+show(f.read())
+for (set i to 0, i < 10, i++){
+    show(i)
 }

@@ -6,8 +6,6 @@ extend "builtins:@pylibs/lumabuiltins.py"
 class module{}
 
 class nullType{
-    constructor nullType(){}
-
     function @stringify(){
         return "null"
     }

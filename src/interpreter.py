@@ -40,42 +40,42 @@ class LumaInterpreter:
         ">=": "@geq",
         ">": "@gt",
         "<": "@lt",
-        "&&": "@and",
         "||": "@or",
-        "**=": "@power",
-        "<<=": "@shift_l",
-        ">>=": "@shift_r",
-        "*=": "@multiplication",
-        "/=": "@division",
-        "+=": "@addition",
-        "-=": "@subtraction",
+        "&&": "@and",
         "%=": "@modulus",
-        "**": "@power",
-        ">>": "@shift_r",
-        "<<": "@shift_l",
-        "/": "@division",
-        "*": "@multiplication",
-        "-": "@subtraction",
-        "+": "@addition",
         "%": "@modulus",
+        ">>=": "@shift_r",
+        ">>": "@shift_r",
+        "<<=": "@shift_l",
+        "<<": "@shift_l",
+        "+=": "@addition",
+        "+": "@addition",
+        "-=": "@subtraction",
+        "-": "@subtraction",
+        "*=": "@multiplication",
+        "*": "@multiplication",
+        "/=": "@division",
+        "/": "@division",
+        "**=": "@power",
+        "**": "@power",
     }
     REAL_OPERATORS: dict[str, Callable] = {
-        "-": operator.sub,
-        "+": operator.add,
-        "/": operator.truediv,
-        "*": operator.mul,
-        "%": operator.mod,
-        "**": operator.pow,
-        ">>": operator.rshift,
-        "<<": operator.lshift,
         "==": operator.eq,
         "<=": operator.le,
         "=<": operator.le,
         ">=": operator.ge,
         ">": operator.gt,
         "<": operator.lt,
-        "&&": operator.and_,
         "||": operator.or_,
+        "&&": operator.and_,
+        "%": operator.mod,
+        ">>": operator.rshift,
+        "<<": operator.lshift,
+        "+": operator.add,
+        "-": operator.sub,
+        "*": operator.mul,
+        "/": operator.truediv,
+        "**": operator.pow,
     }
     NUMBER_RE = re.compile(r"^[+-]?\d+(\.\d+)?$")
     SAVED_KEYWORDS: list[str] = [
@@ -304,8 +304,8 @@ class LumaInterpreter:
         if type(token) is dict:
             if token.get("type", None) == "classType":
                 thecls = self.LumaClass(token["name"], [])
-                if token.get("parent", None):
-                    parent = token["parent"]
+                if token["name"] != 'Object':
+                    parent = token.get("parent", 'Object')
                     thecls.children = self.env[0][parent].children.copy()
                     thecls.parents = self.env[0][parent].parents.copy()
                     thecls.parents.append(parent)
@@ -326,7 +326,7 @@ class LumaInterpreter:
                         constructor.args.insert(0, {"name": "this"})
                 thecls.children["constructor"] = (
                     constructor
-                    if token["constructor"]
+                    if token["constructor"] is not None
                     else thecls.children["constructor"]
                 )
                 return thecls
@@ -470,9 +470,11 @@ class LumaInterpreter:
         file: str = "",
     ):
         line = line.replace(r"\n", "\n")
-        for func in self.overloads.get("process", []):
+        for func in self.overloads.get("beforeprocess", []):
             if func(self, line, linenum, Object, file):
                 return
+        for func in self.overrides.get("process", []):
+            func(self, line, linenum, Object, file)
         if Object is None or type(Object) is LumaInterpreter:
             varis = self.env[-1]
         else:
@@ -520,8 +522,10 @@ class LumaInterpreter:
                 varis[class_name] = self.LumaClass(
                     class_name,
                 )
-                varis[class_name].children = varis[parent].children.copy()
-                varis[class_name].parents.append(parent)
+            else:
+                parent = 'Object'
+            varis[class_name].children = (varis | self.env[0])[parent].children.copy()
+            varis[class_name].parents.append(parent)
             self.runsubprogram(body, varis[class_name], line1=linenum + 1, file=file)
         elif firstword == "constructor":
             class_name = line[12 : line.find("(")].strip()
@@ -609,7 +613,7 @@ class LumaInterpreter:
             self.runext(
                 module, Object=Object, relative=(os.path.dirname(file) if file else ".")
             )
-        elif firstword == "try":
+        elif firstword == "try" or line == 'try{':
             body = ""
             for subline in program.splitlines()[linenum:]:
                 if subline[0] == "}":
@@ -646,6 +650,7 @@ class LumaInterpreter:
             try:
                 self.runsubprogram(body, line1=linenum + 1, file=file)
             except LumaInterpreter.LumaException as e:
+                self.scopes.pop()
                 catched = False
                 for exc in excs:
                     if exc[0][0] == e.exc.typename:
@@ -771,7 +776,7 @@ class LumaInterpreter:
             raise LumaInterpreter.SubProgramExitCode("stop")
         elif (
             line.strip() == ""
-            or line.startswith("    ")
+            or line.startswith(" ")
             or line == "}"
             or firstword == "elseif"
             or firstword == "else"
@@ -779,6 +784,9 @@ class LumaInterpreter:
         ):
             pass
         else:
+            for func in self.overloads.get("afterprocess", []):
+                if func(self, line, linenum, Object, file):
+                    return
             self.evaluate(line)
 
     @staticmethod
@@ -947,6 +955,8 @@ class LumaInterpreter:
         return True
 
     def evaluate(self, expr: str):
+        for func in self.overrides.get("evaluate", []):
+            func(self, expr)
         firstword = LumaInterpreter.getfirstword(expr.strip())
 
         expr = expr.strip()
@@ -1153,7 +1163,8 @@ class LumaInterpreter:
             )
 
     class LumaClass:
-        def __init__(self, name: str, parents: list[str] = ["Object"]):
+        def __init__(self, name: str, parents: list[str] | None = None):
+            if parents is None: parents = ['Object']
             if name == "Object":
                 parents = []
             self.actualname = name
