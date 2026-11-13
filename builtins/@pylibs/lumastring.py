@@ -1,7 +1,8 @@
-from LumaExtBundle import InstancedLumaObject, Raw, ParseMe, Function, Class
+from LumaExtBundle import Raw, ParseMe, Function, Class
+from LumaTypes import LumaInterpreter
 import json
 
-def constructor_str(value, this: InstancedLumaObject | None = None):
+def constructor_str(value, this: LumaInterpreter.InstancedLumaObject | None = None):
     if type(value) is this.expose("InstancedLumaObject"):
         if value.typename == "str":
             this.value = value.value
@@ -10,24 +11,24 @@ def constructor_str(value, this: InstancedLumaObject | None = None):
 constructor_str.__name__ = "constructor"
 
 
-def add(other, this: InstancedLumaObject | None = None):
+def add(other, this: LumaInterpreter.InstancedLumaObject | None = None):
     return this.expose("env")[0]["str"].instance([this.value + str(other)])
 add.__name__ = "@addition"
 
-def eq(other, this: InstancedLumaObject | None = None):
+def eq(other, this: LumaInterpreter.InstancedLumaObject | None = None):
     return this.expose('env')[0]['bool'].instance([this.value == str(other)])
 eq.__name__ = "@eq"
 
-def neq(other, this: InstancedLumaObject | None = None):
+def neq(other, this: LumaInterpreter.InstancedLumaObject | None = None):
     return this.expose('env')[0]['bool'].instance([this.value != str(other)])
 neq.__name__ = "@neq"
 
-def intify(this: InstancedLumaObject | None = None):
+def intify(this: LumaInterpreter.InstancedLumaObject | None = None):
     return this.expose("env")[0]["int"].instance([int(this.value)])
 intify.__name__ = "@int"
 
 
-def at(pos, this: InstancedLumaObject | None = None):
+def at(pos, this: LumaInterpreter.InstancedLumaObject | None = None):
     env = this.expose("env")
     if pos.typename == "int":
         return env[0]["str"].instance([this.value[pos.children["value"]]])
@@ -42,12 +43,12 @@ def at(pos, this: InstancedLumaObject | None = None):
 at.__name__ = "@at"
 
 
-def stringify_str(this: InstancedLumaObject | None = None):
+def stringify_str(this: LumaInterpreter.InstancedLumaObject | None = None):
     return this.expose("env")[0]["str"].instance([this.value])
 stringify_str.__name__ = "@stringify"
 
 
-def repre(this: InstancedLumaObject | None = None):
+def repre(this: LumaInterpreter.InstancedLumaObject | None = None):
     if '"' in this.value and "'" not in this.value:
         return this.expose("env")[0]["str"].instance(["'" + this.value + "'"])
     if "'" in this.value and '"' not in this.value:
@@ -56,16 +57,16 @@ def repre(this: InstancedLumaObject | None = None):
 repre.__name__ = "@repr"
 
 
-def length(this: InstancedLumaObject | None = None):
+def length(this: LumaInterpreter.InstancedLumaObject | None = None):
     return this.expose("env")[0]["int"].instance([len(this.value)])
 length.__name__ = "len"
 
 
-def lbool(this: InstancedLumaObject | None = None):
+def lbool(this: LumaInterpreter.InstancedLumaObject | None = None):
     return this.expose("env")[0]["bool"].instance([len(this.value)])
 lbool.__name__ = "@bool"
 
-def constructor(this: InstancedLumaObject | None = None):
+def constructor(this: LumaInterpreter.InstancedLumaObject | None = None):
     pass
 
 LumaExtension = {

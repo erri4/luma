@@ -1,18 +1,17 @@
-from LumaExtBundle import InstancedLumaObject, Raw, ParseMe, Function, Class
-import sys
-import os
+from LumaExtBundle import Raw, ParseMe, Function, Class
+from LumaTypes import LumaInterpreter
 
-def constructor_err(msg, this: InstancedLumaObject | None = None):
+def constructor_err(msg, this: LumaInterpreter.InstancedLumaObject | None = None):
     setattr(this, "msg", msg)
     setattr(this, "tb", this.expose("traceback")())
 constructor_err.__name__ = "constructor"
 
 
-def trigger(this: InstancedLumaObject | None = None):
+def trigger(this: LumaInterpreter.InstancedLumaObject | None = None):
     raise this.expose("LumaException")(this)
 
 
-def stringify_err(this: InstancedLumaObject | None = None):
+def stringify_err(this: LumaInterpreter.InstancedLumaObject | None = None):
     return getattr(this, "msg")
 stringify_err.__name__ = "@stringify"
 

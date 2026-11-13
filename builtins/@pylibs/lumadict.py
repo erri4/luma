@@ -1,31 +1,32 @@
-from LumaExtBundle import InstancedLumaObject, Raw, ParseMe, Function, Class
+from LumaExtBundle import Raw, ParseMe, Function, Class
+from LumaTypes import LumaInterpreter
 
 
-def constructor_dict(value: dict, this: InstancedLumaObject | None = None):
+def constructor_dict(value: dict, this: LumaInterpreter.InstancedLumaObject | None = None):
     this.value = value.copy()
 constructor_dict.__name__ = 'constructor'
 
-def at(pos, this: InstancedLumaObject | None = None):
+def at(pos, this: LumaInterpreter.InstancedLumaObject | None = None):
     return this.value[pos]
 at.__name__ = '@at'
 
-def delat(pos, this: InstancedLumaObject | None = None):
+def delat(pos, this: LumaInterpreter.InstancedLumaObject | None = None):
     del this.value[pos]
 delat.__name__ = '@del'
 
-def del_(pos, this: InstancedLumaObject | None = None):
+def del_(pos, this: LumaInterpreter.InstancedLumaObject | None = None):
     del this.value[pos]
 del_.__name__ = 'del_'
 
-def intify_dict(this: InstancedLumaObject | None = None):
+def intify_dict(this: LumaInterpreter.InstancedLumaObject | None = None):
     return this.expose('env')[0]["int"].instance([len(this.value)])
 intify_dict.__name__ = '@int'
 
-def dctset(pos, value, this: InstancedLumaObject | None = None) -> None:
+def dctset(pos, value, this: LumaInterpreter.InstancedLumaObject | None = None) -> None:
     this.value[pos] = value
 dctset.__name__ = '@set'
 
-def stringify_dict(this: InstancedLumaObject | None = None):
+def stringify_dict(this: LumaInterpreter.InstancedLumaObject | None = None):
     dct = "{"
     items = list(this.value.items())
     for i in range(len(items)):
@@ -42,7 +43,7 @@ def stringify_dict(this: InstancedLumaObject | None = None):
     )
 stringify_dict.__name__ = '@stringify'
 
-def repr_dict(this: InstancedLumaObject | None = None):
+def repr_dict(this: LumaInterpreter.InstancedLumaObject | None = None):
                 dct = "{"
                 items = list(this.value.items())
                 for i in range(len(items)):
@@ -59,25 +60,25 @@ def repr_dict(this: InstancedLumaObject | None = None):
                 )
 repr_dict.__name__ = '@repr'
 
-def eq_dict(other, this: InstancedLumaObject | None = None):
+def eq_dict(other, this: LumaInterpreter.InstancedLumaObject | None = None):
     return this.expose('env')[0]['bool'].instance([this.value == dict(other)])
 eq_dict.__name__ = "@eq"
 
-def neq_dict(other, this: InstancedLumaObject | None = None):
+def neq_dict(other, this: LumaInterpreter.InstancedLumaObject | None = None):
     return this.expose('env')[0]['bool'].instance([this.value != dict(other)])
 neq_dict.__name__ = "@neq"
 
-def selfdict(this: InstancedLumaObject | None = None):
+def selfdict(this: LumaInterpreter.InstancedLumaObject | None = None):
     return this
 selfdict.__name__ = "@dict"
 
-def length(this: InstancedLumaObject | None = None):
+def length(this: LumaInterpreter.InstancedLumaObject | None = None):
     int_ = this.expose('env')[0]["int"]
     obj = int_.instance([len(this.value)])
     return obj
 length.__name__ = 'len'
 
-def lbool(this: InstancedLumaObject | None = None):
+def lbool(this: LumaInterpreter.InstancedLumaObject | None = None):
     return this.expose('env')[0]["bool"].instance([bool(len(this.value))])
 lbool.__name__ = '@bool'
 

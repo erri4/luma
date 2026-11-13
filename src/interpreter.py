@@ -18,7 +18,7 @@ compile:
 nuitka --follow-imports --standalone --windows-console-mode=force --enable-plugin=tk-inter --include-package=discord --include-package=requests --include-package=tkinter .\src\luma.py
 """
 
-EvaluatedType = Union["LumaInterpreter.InstancedLumaObject", int, str, dict]
+type EvaluatedType = "LumaInterpreter.InstancedLumaObject | int | str | dict"
 
 
 class LumaInterpreter:
@@ -1356,7 +1356,6 @@ class LumaInterpreter:
             args: list[EvaluatedType],
             parents: list[str],
         ):
-            self.value = None
             self.children = children.copy()
             self.parents = parents
             self.typename = name
