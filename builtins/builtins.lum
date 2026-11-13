@@ -5,17 +5,19 @@ extend "builtins:@pylibs/lumabuiltins.py"
 
 class module{}
 
-class raw{
-    constructor raw(){}
-}
+class nullType{
+    constructor nullType(){}
 
-class nullType (raw){
     function @stringify(){
         return "null"
     }
 
     function @repr(){
         return "null"
+    }
+    
+    function @bool(){
+        return false
     }
 }
 
