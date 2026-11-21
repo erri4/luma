@@ -86,6 +86,7 @@ while (condition){
     do_stuff()
 }
 ```
+If you want to use the break and continue keywords, in Luma they are called stop and again respectively
 ### Classes
 Classes are the way to define new types,
 to define a new class use the keyword `class`. Inheritance is possible, and a class can contains nested classes:
@@ -188,8 +189,4 @@ If you do want to change the interpreter midrun, there are two cases:
 
 <br>
 
-1. Currently only after and before `process` are supported, to use it write a python function that accepts the exact same arguments as `process` (`self: LumaTypes.LumaInterpreter, line: str, linenum: int, Object = None, file: str = ''`) and in `LumaExtension` add a key-value pair, (the key does not matter) containing an instance of `LumaExtBundle.Overload` with a string of the desired overload (`"beforeprocess"` or `"afterprocess"`) in the `type` field, and the function overload in the `function` field.
-Any `process` overload should return `True` if the processing should stop after it.
-
-2. To override a function, do the same just use `LumaExtBundle.Override` instead of `LumaExtBundle.Overload`.
-Currently only `process` and `evaluate` are supported for overriding.
+I am too lazy to make a good documentation on this subject. Please try to read the example given (`packages:forloops.py`) and understand the syntax.

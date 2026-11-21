@@ -5,6 +5,9 @@ class Raw:
     def __init__(self, data):
         self.data = data
 
+    def __repr__(self):
+        return f'Raw({self.data})'
+
 class DictToDict:
     def __init__(self, keys: list = [], values: list = []):
         self.keys = keys

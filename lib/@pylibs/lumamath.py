@@ -1,6 +1,42 @@
 from LumaExtBundle import Raw, ParseMe, Function
 import math
 
+sin = lambda x: ParseMe(
+            {"type": "float", "args": [Raw(math.sin(float(x)))]}
+        )
+sin.__name__ = 'sin'
+
+
+arcsin = lambda x: ParseMe(
+            {"type": "float", "args": [Raw(math.asin(float(x)))]}
+        )
+arcsin.__name__ = 'arcsin'
+
+cos = lambda x: ParseMe(
+            {"type": "float", "args": [Raw(math.cos(float(x)))]}
+        )
+cos.__name__ = 'cos'
+
+arccos = lambda x: ParseMe(
+            {"type": "float", "args": [Raw(math.acos(float(x)))]}
+        )
+arccos.__name__ = 'arccos'
+
+tan = lambda x: ParseMe(
+            {"type": "float", "args": [Raw(math.tan(float(x)))]}
+        )
+tan.__name__ = 'tan'
+
+arctan = lambda x: ParseMe(
+            {"type": "float", "args": [Raw(math.atan(float(x)))]}
+        )
+arctan.__name__ = 'arctan'
+
+sqrt = lambda x: ParseMe(
+            {"type": "float", "args": [Raw(math.sqrt(float(x)))]}
+        )
+sqrt.__name__ = 'sqrt'
+
 LumaExtension = {
     "pi": {
         "type": "float",
@@ -11,45 +47,31 @@ LumaExtension = {
         "args": [Raw(math.e)],
     },
     "sin": Function(
-        lambda x: ParseMe(
-            {"type": "float", "args": [Raw(math.sin(float(x)))]}
-        ),
+        sin,
         [{"name": "x"}],
     ),
     "arcsin": Function(
-        lambda x: ParseMe(
-            {"type": "float", "args": [Raw(math.asin(float(x)))]}
-        ),
+        arcsin,
         [{"name": "x"}],
     ),
     "cos": Function(
-        lambda x: ParseMe(
-            {"type": "float", "args": [Raw(math.cos(float(x)))]}
-        ),
+        cos,
         [{"name": "x"}],
     ),
     "arccos": Function(
-        lambda x: ParseMe(
-            {"type": "float", "args": [Raw(math.acos(float(x)))]}
-        ),
+        arccos,
         [{"name": "x"}],
     ),
     "tan": Function(
-        lambda x: ParseMe(
-            {"type": "float", "args": [Raw(math.tan(float(x)))]}
-        ),
+        tan,
         [{"name": "x"}],
     ),
     "arctan": Function(
-        lambda x: ParseMe(
-            {"type": "float", "args": [Raw(math.atan(float(x)))]}
-        ),
+        arctan,
         [{"name": "x"}],
     ),
     "sqrt": Function(
-        lambda x: ParseMe(
-            {"type": "float", "args": [Raw(math.sqrt(float(x)))]}
-        ),
+        sqrt,
         [{"name": "x"}],
     ),
 }

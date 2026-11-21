@@ -5,20 +5,6 @@ extend "builtins:@pylibs/lumabuiltins.py"
 
 class module{}
 
-class nullType{
-    function @stringify(){
-        return "null"
-    }
-
-    function @repr(){
-        return "null"
-    }
-    
-    function @bool(){
-        return false
-    }
-}
-
 function repr(obj){
     return obj.@repr()
 }
@@ -98,7 +84,3 @@ function range(start, end = new nullType(), jump = 1){
     }
     return r
 }
-
-set true to new bool(1)
-set false to new bool(0)
-set null to new nullType()

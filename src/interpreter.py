@@ -122,7 +122,7 @@ class LumaInterpreter:
         self.scopes.append(program)
         self.runimport("builtins:builtins.lum", None)
         try:
-            self.runsubprogram(program, infunc=False, file=self.filename, main = True)
+            self.runsubprogram(program, file=self.filename, main = True)
         except LumaInterpreter.LumaException as e:
             print(e)
 
@@ -234,7 +234,7 @@ class LumaInterpreter:
             with open(module) as imported:
                 subprogram = imported.read()
                 if name is None:
-                    self.runsubprogram(subprogram, infunc=False, file=module)
+                    self.runsubprogram(subprogram, file=module)
                 else:
                     self.env[0]["module"] = LumaInterpreter.LumaClass("module") # clean
                     self.env[0]["module"].children["constructor"] = (
@@ -247,7 +247,6 @@ class LumaInterpreter:
                     self.env.append({})
                     self.runsubprogram(
                         subprogram,
-                        infunc=False,
                         file=module,
                         Object=self.env[0]["module"],
                     )
@@ -393,10 +392,8 @@ class LumaInterpreter:
     def runsubprogram(
         self,
         subprogram: str,
-        Object=None,
-        infunc: bool = True,
-        realfunc: bool = False,
-        line1: int = 1,
+        Object: "LumaInterpreter | LumaInterpreter.InstancedLumaObject" = None,
+        line: int = 1,
         file: str = "",
         main: bool = False,
     ):
@@ -406,9 +403,6 @@ class LumaInterpreter:
             Object = self
         subprogram = LumaInterpreter.preprocess(subprogram)
         subprogram = subprogram.splitlines()
-        if infunc:
-            for i in range(len(subprogram)):
-                subprogram[i] = LumaInterpreter.removetab(subprogram[i])
         subprogram = "\n".join(subprogram)
         self.scopes.append(subprogram)
         self.env[-1]['@file'] = self.env[0]['str'].instance([file])
@@ -418,30 +412,330 @@ class LumaInterpreter:
             else: self.env[-1]['@main'] = self.env[0]['bool'].instance([main])
         except KeyError: pass
         res = None
-        li = 0
-        for subline in subprogram.splitlines():
-            li += 1
-            self.tb.append([line1, subline, file])
+        if Object is None or type(Object) is LumaInterpreter:
+            varis = self.env[-1]
+        else:
+            varis = Object.children
+        ln = 0
+        while ln < len(subprogram.splitlines()):
+            subline = subprogram.splitlines()[ln].replace(r"\n", "\n")
+            self.tb.append([line, subline, file])
             try:
-                res = self.process(subline, line1 if not infunc else li, Object, file)
+                code = self.process(subline, line, Object, file)
+                overloaded = False
+                for func in self.overloads.get("subprogram", []):
+                    if code[0] == func.code:
+                        ln += func(self, subprogram, Object, line, file, main, ln, code)
+                        overloaded = True
+                if not overloaded:
+                    match code[0]:
+                        case 'function':
+                            func_name = code[1]
+                            args = code[2]
+                            body = ""
+                            scp = 1
+                            for c in '\n'.join(subprogram.splitlines()[ln + 1:]):
+                                if c == '}': scp -= 1
+                                if c == '{': scp += 1
+                                if scp == 0:
+                                    break
+                                body += c
+                            lines = body.splitlines()
+                            for i in range(len(lines)):
+                                lines[i] = lines[i].strip()
+                            body = '\n'.join(lines)
+                            body = body.strip()
+                            if subline.endswith('}'):
+                                body = ""
+                            varis[func_name] = self.LumaFunction(
+                                func_name,
+                                args + ([{"name": "this"}] if Object is not LumaInterpreter() else []),
+                                body,
+                                line + 1,
+                                file,
+                            )
+                            ln += len(lines) + 1 if body else 0
+                        case 'throw':
+                            exc: LumaInterpreter.InstancedLumaObject = self.evaluate(code[1])
+                            exc.callmethod("trigger", [])
+                        case 'class':
+                            class_name = code[1]
+                            parent = code[2]
+                            varis[class_name] = self.LumaClass(
+                                class_name,
+                            )
+                            body = ""
+                            scp = 1
+                            for c in '\n'.join(subprogram.splitlines()[ln + 1:]):
+                                if c == '}': scp -= 1
+                                if c == '{': scp += 1
+                                if scp == 0:
+                                    break
+                                body += c
+                            lines = body.splitlines()
+                            for i in range(len(lines)):
+                                lines[i] = lines[i].strip()
+                            body = '\n'.join(lines)
+                            body = body.strip()
+                            if subline.endswith('}'):
+                                body = ""
+                            varis[class_name].children = code[3]
+                            varis[class_name].parents.append(parent)
+                            self.runsubprogram(body, varis[class_name], line=line + 1, file=file)
+                            ln += len(lines) + 1 if body else 0
+                        case 'constructor':
+                            body = ""
+                            scp = 1
+                            for c in '\n'.join(subprogram.splitlines()[ln + 1:]):
+                                if c == '}': scp -= 1
+                                if c == '{': scp += 1
+                                if scp == 0:
+                                    break
+                                body += c
+                            lines = body.splitlines()
+                            for i in range(len(lines)):
+                                lines[i] = lines[i].strip()
+                            body = '\n'.join(lines)
+                            body = body.strip()
+                            if subline.endswith('}'):
+                                body = ""
+                            varis["constructor"] = self.LumaFunction(
+                                "constructor", code[1], body, line + 1, file
+                            )
+                            ln += len(lines) + 1 if body else 0
+                        case 'setchild':
+                            self.evaluate(code[1]).children[code[2]] = code[3]
+                        case 'set':
+                            varis[code[1]] = code[2]
+                        case 'deletechild':
+                            del self.evaluate(code[1]).children[code[2]]
+                        case 'delete':
+                            del varis[code[1]]
+                        case 'import':
+                            self.runimport(
+                                    str(self.evaluate(code[1])),
+                                    code[2],
+                                    Object=getattr(Object, "children", self.env[0]),
+                                    relative=(os.path.dirname(file) if file else "."),
+                                )
+                        case 'extend':
+                            self.runext(
+                                    code[1], Object=Object, relative=(os.path.dirname(file) if file else ".")
+                                )
+                        case 'try':
+                            offset = 0
+                            body = ""
+                            scp = 1
+                            for c in '\n'.join(subprogram.splitlines()[ln + 1:]):
+                                if c == '}': scp -= 1
+                                if c == '{': scp += 1
+                                if scp == 0:
+                                    break
+                                body += c
+                            lines = body.splitlines()
+                            for i in range(len(lines)):
+                                lines[i] = lines[i].strip()
+                            body = '\n'.join(lines)
+                            body = body.strip()
+                            if subline.endswith('}'):
+                                body = ""
+                            linenu = int(line) + (len(body.splitlines()) + 1 if body else 0 ) + 1
+                            offset = linenu - line
+                            sline = ""
+                            try:
+                                sline = subprogram.splitlines()[ln + offset].strip()
+                            except IndexError:
+                                pass
+                            bodys = {}
+                            excs = []
+                            while sline.startswith("catch"):
+                                exc = sline[7 : sline.find(")")].split(" as ")
+                                bd = ""
+                                scp = 1
+                                for c in '\n'.join(subprogram.splitlines()[ln + offset + 1:]):
+                                    if c == '}': scp -= 1
+                                    if c == '{': scp += 1
+                                    if scp == 0:
+                                        break
+                                    bd += c
+                                lines = bd.splitlines()
+                                for i in range(len(lines)):
+                                    lines[i] = lines[i].strip()
+                                bd = '\n'.join(lines)
+                                bd = bd.strip()
+                                if sline.endswith('}'):
+                                    bd = ""
+                                excs.append([exc, linenu])
+                
+                                bodys[exc[0]] = bd
+                                linenu += len(bd.splitlines()) + 2
+                
+                                offset = linenu - line
+                                try:
+                                    sline = subprogram.splitlines()[ln + offset].strip()
+                                except IndexError:
+                                    break
+                            try:
+                                self.runsubprogram(body, line=line + 1, file=file)
+                            except LumaInterpreter.LumaException as e:
+                                self.scopes.pop()
+                                caught = False
+                                for exc in excs:
+                                    if exc[0][0] == e.exc.typename:
+                                        if len(exc[0]) > 1:
+                                            self.env[0][exc[0][1]] = e.exc
+                                        self.runsubprogram(
+                                            bodys[exc[0][0]], line=exc[1] + 1, file=file
+                                        )
+                                        caught = True
+                                if not caught:
+                                    for exc in excs:
+                                        if exc[0][0] == "anyError":
+                                            if len(exc[0]) > 1:
+                                                self.env[0][exc[0][1]] = e.exc
+                                            self.runsubprogram(
+                                                bodys[exc[0][0]], line=exc[1] + 1, file=file
+                                            )
+                                            caught = True
+                                if not caught:
+                                    raise e from None
+                                self.tb.pop()
+                            ln += offset
+                        case 'if':
+                            offset = 0
+                            body = ""
+                            scp = 1
+                            for c in '\n'.join(subprogram.splitlines()[ln + 1:]):
+                                if c == '}': scp -= 1
+                                if c == '{': scp += 1
+                                if scp == 0:
+                                    break
+                                body += c
+                            lines = body.splitlines()
+                            for i in range(len(lines)):
+                                lines[i] = lines[i].strip()
+                            body = '\n'.join(lines)
+                            body = body.strip()
+                            if subline.endswith('}'):
+                                body = ""
+                            conditions = []
+                            bodys = {}
+                            stops = {}
+                            linenu = int(line) + len(body.splitlines()) + 2
+                            offset = linenu - line
+                            sline = ""
+                            try:
+                                sline = subprogram.splitlines()[ln + offset].strip()
+                            except IndexError:
+                                pass
+                            while sline.startswith("elseif"):
+                                cond = sline[8 : sline.find(")")]
+                                bd = ""
+                                scp = 1
+                                for c in '\n'.join(subprogram.splitlines()[ln + offset + 1:]):
+                                    if c == '}': scp -= 1
+                                    if c == '{': scp += 1
+                                    if scp == 0:
+                                        break
+                                    bd += c
+                                lines = bd.splitlines()
+                                for i in range(len(lines)):
+                                    lines[i] = lines[i].strip()
+                                bd = '\n'.join(lines)
+                                bd = bd.strip()
+                                if sline.endswith('}'):
+                                    bd = ""
+                                conditions.append(cond)
+                
+                                bodys[cond] = bd
+                                stops[cond] = linenu
+                                linenu += len(bd.splitlines()) + 2
+                                offset = linenu - line
+                
+                                try:
+                                    sline = subprogram.splitlines()[ln + offset].strip()
+                                except IndexError:
+                                    break
+                            elsebody = ""
+                            if sline.startswith("else"):
+                                scp = 1
+                                for c in '\n'.join(subprogram.splitlines()[ln + offset + 1:]):
+                                    if c == '}': scp -= 1
+                                    if c == '{': scp += 1
+                                    if scp == 0:
+                                        break
+                                    elsebody += c
+                                lines = elsebody.splitlines()
+                                for i in range(len(lines)):
+                                    lines[i] = lines[i].strip()
+                                elsebody = '\n'.join(lines)
+                                elsebody = elsebody.strip()
+                                if sline.endswith('}'):
+                                    elsebody = ""
+                                offset += len(elsebody.splitlines()) + 2
+                            stops["else"] = linenu
+                            ifcond = self.evaluate(code[1])
+                            if bool(ifcond):
+                                self.runsubprogram(body, line=line + 1, file=file)
+                            else:
+                                foundelif = False
+                                for i in range(len(conditions)):
+                                    con = conditions[i]
+                                    bd: str = bodys[con]
+                                    if bool(self.evaluate(con)):
+                                        self.tb.append([stops[con], "elseif (" + con + "){", file])
+                                        self.runsubprogram(bd, line=stops[con] + 1, file=file)
+                                        self.tb.pop()
+                                        foundelif = True
+                                        break
+                                if not foundelif:
+                                    self.tb.append([stops["else"], "else {", file])
+                                    self.runsubprogram(elsebody, line=stops["else"] + 1, file=file)
+                                    self.tb.pop()
+                            ln += offset - 1
+                        case 'while':
+                            body = ""
+                            scp = 1
+                            for c in '\n'.join(subprogram.splitlines()[ln + 1:]):
+                                if c == '}': scp -= 1
+                                if c == '{': scp += 1
+                                if scp == 0:
+                                    break
+                                body += c
+                            lines = body.splitlines()
+                            for i in range(len(lines)):
+                                lines[i] = lines[i].strip()
+                            body = '\n'.join(lines)
+                            body = body.strip()
+                            if subline.endswith('}'):
+                                body = ""
+                            while self.env[0]["bool"].instance([self.evaluate(code[1])]):
+                                try:
+                                    self.runsubprogram(body, line=line + 1, file=file)
+                                except LumaInterpreter.SubProgramExitCode as e:
+                                    if e.code == "stop":
+                                        break
+                                    elif e.code == "again":
+                                        continue
+                                    else:
+                                        raise LumaInterpreter.SubProgramExitCode(e.code, e.data)
+                            ln += len(lines) + 1 if body else 0
+                        case 'return':
+                            r = self.evaluate(code[1] if code[1] else 'null')
+                            raise LumaInterpreter.SubProgramExitCode('return', r)
+                        case 'again':
+                            raise LumaInterpreter.SubProgramExitCode('again')
+                        case 'stop':
+                            raise LumaInterpreter.SubProgramExitCode('stop')
+                        case 'eval':
+                            self.evaluate(code[1])
+                        case 'nop': pass
             except LumaInterpreter.SubProgramExitCode as e:
-                if e.code == "return":
-                    self.tb.pop()
-                    self.scopes.pop()
-                    return e.data
-                else:
-                    self.tb.pop()
-                    self.scopes.pop()
-                    raise LumaInterpreter.SubProgramExitCode(e.code, e.data) from e
-            if subline.startswith("return"):
-                if not realfunc:
-                    self.tb.pop()
-                    self.scopes.pop()
-                    raise LumaInterpreter.SubProgramExitCode("return", res)
-                else:
-                    self.tb.pop()
-                    break
-            line1 += 1
+                self.tb.pop()
+                self.scopes.pop()
+                raise LumaInterpreter.SubProgramExitCode(e.code, e.data) from e
+            line += 1
+            ln += 1
             self.tb.pop()
         self.scopes.pop()
         return res
@@ -469,12 +763,13 @@ class LumaInterpreter:
         Object: "LumaInterpreter | LumaInterpreter.InstancedLumaObject | None" = None,
         file: str = "",
     ):
-        line = line.replace(r"\n", "\n")
+        line = line.replace(r"\n", "\n").strip()
         for func in self.overloads.get("beforeprocess", []):
-            if func(self, line, linenum, Object, file):
-                return
+            x = func(self, line, linenum, Object, file)
+            if x is not None:
+                return x
         for func in self.overrides.get("process", []):
-            func(self, line, linenum, Object, file)
+            return func(self, line, linenum, Object, file)
         if Object is None or type(Object) is LumaInterpreter:
             varis = self.env[-1]
         else:
@@ -484,38 +779,12 @@ class LumaInterpreter:
         if firstword == "function":
             func_name = line[9 : line.find("(")].strip()
             args = self.parse_args(line[line.find("(") + 1 : line.rfind(")")])
-            body = ""
-            for subline in program.splitlines()[linenum:]:
-                if (subline + " ")[0] == "}":
-                    break
-                body += subline + "\n"
-            body = body.strip()
-            if line[-1] == "}":
-                body = ""
-            varis[func_name] = self.LumaFunction(
-                func_name,
-                args + ([{"name": "this"}] if Object is not LumaInterpreter() else []),
-                body,
-                linenum + 1,
-                file,
-            )
+            return 'function', func_name, args + ([{"name": "this"}] if Object is not LumaInterpreter() else [])
         elif firstword == "throw":
-            exc: LumaInterpreter.InstancedLumaObject = self.evaluate(line[6:])
-            exc.callmethod("trigger", [])
+            return 'throw', line[6:]
         elif firstword == "class":
             class_name = line[6 : line.find("{")].strip()
-            body = ""
-            for subline in program.splitlines()[linenum:]:
-                if (subline + " ")[0] == "}":
-                    break
-                body += subline + "\n"
-            body = body.strip()
-            if line[-1] == "}":
-                body = ""
             parent = None
-            varis[class_name] = self.LumaClass(
-                class_name,
-            )
             if "(" in class_name and ")" in class_name:
                 parent = class_name[class_name.find("(") + 1 : class_name.find(")")]
                 class_name = class_name[: class_name.find("(")].strip()
@@ -524,270 +793,77 @@ class LumaInterpreter:
                 )
             else:
                 parent = 'Object'
-            varis[class_name].children = (varis | self.env[0])[parent].children.copy()
-            varis[class_name].parents.append(parent)
-            self.runsubprogram(body, varis[class_name], line1=linenum + 1, file=file)
+            return 'class', class_name, parent, (varis | self.env[0])[parent].children.copy()
         elif firstword == "constructor":
             class_name = line[12 : line.find("(")].strip()
             args = self.parse_args(line[line.find("(") + 1 : line.rfind(")")])
-            body = ""
-            for subline in program.splitlines()[linenum:]:
-                if (subline + " ")[0] == "}":
-                    break
-                body += subline + "\n"
-            body = body.strip()
-            if line[-1] == "}":
-                body = ""
-            varis["constructor"] = self.LumaFunction(
-                "constructor", args + [{"name": "this"}], body, linenum + 1, file
-            )
+            return 'constructor', args + [{"name": "this"}]
         elif firstword == "set":
             varname = line[4 : line.find("to ") - 1]
             value = self.evaluate(line[line.find("to ") + 3 :])
             splitted = LumaInterpreter.smrtsplt(varname, ".")
             if len(splitted) > 1:
                 instancename = ".".join(splitted[:-1])
-                self.evaluate(instancename).children[splitted[-1]] = value
+                return 'setchild', instancename, splitted[-1], value
             elif LumaInterpreter.is_index_call(varname):
                 splitted = LumaInterpreter.smrtsplt(varname, "[")
                 prefix = "[".join(splitted[:-1])
-                index = self.evaluate(splitted[-1][:-1])
-                self.evaluate(prefix).callmethod("@set", [index, value])
+                return 'eval', f'({prefix}).@set(({splitted[-1][:-1]}), ({line[line.find("to ") + 3 :]}))'
             else:
-                if varname == "this":
-                    LumaInterpreter.throw(
-                        self.env[0]["typeError"],
-                        "cannot use 'this' keyword outside class method call",
-                    )
                 if varname in self.SAVED_KEYWORDS:
-                    if varname in ["true", "false", "null"]:
-                        if not file.endswith("builtins.lum"):
-                            LumaInterpreter.throw(
-                                self.env[0]["typeError"],
-                                f"cannot assign to '{varname}': saved keyword",
-                            )
-                        else:
-                            varis[varname] = value
-                            return
                     LumaInterpreter.throw(
                         self.env[0]["typeError"],
                         f"cannot assign to '{varname}': saved keyword",
                     )
-                varis[varname] = value
+                return 'set', varname, value
         elif firstword == "delete":
             varname = line[7:]
             splitted = LumaInterpreter.smrtsplt(varname, ".")
             if len(splitted) > 1:
                 instancename = ".".join(splitted[:-1])
-                del self.evaluate(instancename).children[splitted[-1]]
+                return 'deletechild', instancename, splitted[-1]
             elif LumaInterpreter.is_index_call(varname):
                 splitted = LumaInterpreter.smrtsplt(varname, "[")
                 prefix = "[".join(splitted[:-1])
-                index = self.evaluate(splitted[-1][:-1])
-                self.evaluate(prefix).callmethod("@del", [index])
+                return 'eval', f'({prefix}).@del(({splitted[-1][:-1]}))'
             else:
-                if varname == "this":
-                    LumaInterpreter.throw(
-                        self.env[0]["typeError"],
-                        "cannot use 'this' keyword outside class method call",
-                    )
                 if varname in self.SAVED_KEYWORDS:
                     LumaInterpreter.throw(
                         self.env[0]["typeError"],
                         f"cannot delete '{varname}': saved keyword",
                     )
-                del varis[varname]
+                return 'delete', varname
         elif firstword == "import":
             module = LumaInterpreter.getfirstword(line[7:])
             name = None
             if "as" in line:
                 name = line[11 + len(LumaInterpreter.getfirstword(line[7:])) :]
-            self.runimport(
-                str(self.evaluate(module)),
-                name,
-                Object=getattr(Object, "children", self.env[0]),
-                relative=(os.path.dirname(file) if file else "."),
-            )
+            return 'import', module, name
         elif firstword == "extend":
             module = str(self.evaluate(LumaInterpreter.getfirstword(line[7:])))
-            self.runext(
-                module, Object=Object, relative=(os.path.dirname(file) if file else ".")
-            )
+            return 'extend', module
         elif firstword == "try" or line == 'try{':
-            body = ""
-            for subline in program.splitlines()[linenum:]:
-                if subline[0] == "}":
-                    break
-                body += subline + "\n"
-            body = body.strip()
-            linenu = int(linenum) + len(body.splitlines()) + 2
-            subline = ""
-            try:
-                subline = LumaInterpreter.removetab(program.splitlines()[linenu - 1])
-            except IndexError:
-                pass
-            bodys = {}
-            excs = []
-            while subline.startswith("catch"):
-                exc = subline[7 : subline.find(")")].split(" as ")
-                bd = ""
-                for subline in program.splitlines()[linenu:]:
-                    if subline[0] == "}":
-                        break
-                    bd += subline + "\n"
-                bd = bd.strip()
-                excs.append([exc, linenu])
-
-                bodys[exc[0]] = bd
-                linenu += len(bd.splitlines()) + 2
-
-                try:
-                    subline = LumaInterpreter.removetab(
-                        program.splitlines()[linenu - 1]
-                    )
-                except IndexError:
-                    break
-            try:
-                self.runsubprogram(body, line1=linenum + 1, file=file)
-            except LumaInterpreter.LumaException as e:
-                self.scopes.pop()
-                catched = False
-                for exc in excs:
-                    if exc[0][0] == e.exc.typename:
-                        try:
-                            self.env[0][exc[0][1]] = e.exc
-                        except IndexError:
-                            pass
-                        self.runsubprogram(
-                            bodys[exc[0][0]], line1=exc[1] + 1, file=file
-                        )
-                        catched = True
-                if not catched:
-                    for exc in excs:
-                        if exc[0][0] == "anyError":
-                            try:
-                                self.env[0][exc[0][1]] = e.exc
-                            except IndexError:
-                                pass
-                            self.runsubprogram(
-                                bodys[exc[0][0]], line1=exc[1] + 1, file=file
-                            )
-                            catched = True
-                if not catched:
-                    raise e from None
+            return 'try', None
         elif firstword == "if":
             condition = line[4:4+self.find(line[4:])]
-            body = ""
-            for subline in program.splitlines()[linenum:].copy():
-                if subline:
-                    if subline[0] == "}":
-                        break
-                body += subline + "\n"
-            body = body.strip()
-            conditions = []
-            bodys = {}
-            stops = {}
-            linenu = int(linenum) + len(body.splitlines()) + 2
-            subline = ""
-            try:
-                subline = LumaInterpreter.removetab(program.splitlines()[linenu - 1])
-            except IndexError:
-                pass
-            while subline.startswith("elseif"):
-                cond = subline[8 : subline.find(")")]
-                bd = ""
-                for subline in program.splitlines()[linenu:]:
-                    if subline[0] == "}":
-                        break
-                    bd += subline + "\n"
-                bd = bd.strip()
-                conditions.append(cond)
-
-                bodys[cond] = bd
-                stops[cond] = linenu
-                linenu += len(bd.splitlines()) + 2
-
-                try:
-                    subline = LumaInterpreter.removetab(
-                        program.splitlines()[linenu - 1]
-                    )
-                except IndexError:
-                    break
-            try:
-                subline = LumaInterpreter.removetab(program.splitlines()[linenu - 1])
-            except IndexError:
-                pass
-            elsebody = ""
-            if subline.startswith("else"):
-                for subline in program.splitlines()[linenu:]:
-                    if subline[0] == "}":
-                        break
-                    elsebody += subline + "\n"
-                elsebody = elsebody.strip()
-            stops["else"] = linenu
-            r = None
-            ifcond = self.evaluate(condition)
-            if self.env[0]["bool"].instance([ifcond]):
-                r = self.runsubprogram(body, line1=linenum + 1, file=file)
-            else:
-                foundelif = False
-                for i in range(len(conditions)):
-                    con = conditions[i]
-                    bd: str = bodys[con]
-                    if self.env[0]["bool"].instance([self.evaluate(con)]):
-                        self.tb.append([stops[con], "elseif (" + con + "){", file])
-                        r = self.runsubprogram(bd, line1=stops[con] + 1, file=file)
-                        self.tb.pop()
-                        foundelif = True
-                        break
-                if not foundelif:
-                    self.tb.append([stops["else"], "else {", file])
-                    r = self.runsubprogram(elsebody, line1=stops["else"] + 1, file=file)
-                    self.tb.pop()
-            return r
+            return 'if', condition
         elif firstword == "while":
             condition = line[7:7+self.find(line[7:])]
-            body = ""
-            for subline in program.splitlines()[linenum:]:
-                if subline != "":
-                    if subline[0] == "}":
-                        break
-                body += subline + "\n"
-            body = body.strip()
-            while self.env[0]["bool"].instance([self.evaluate(condition)]):
-                try:
-                    self.runsubprogram(body, line1=linenum + 1, file=file)
-                except LumaInterpreter.SubProgramExitCode as e:
-                    if e.code == "stop":
-                        break
-                    elif e.code == "again":
-                        continue
-                    else:
-                        raise LumaInterpreter.SubProgramExitCode(e.code, e.data)
+            return 'while', condition
         elif firstword == "return":
-            if line == "return":
-                return
             value = line[7:]
-            r = self.evaluate(value.strip())
-            return r
+            return 'return', value.strip()
         elif line == "again":
-            raise LumaInterpreter.SubProgramExitCode("again")
+            return 'again'
         elif line == "stop":
-            raise LumaInterpreter.SubProgramExitCode("stop")
-        elif (
-            line.strip() == ""
-            or line.startswith(" ")
-            or line == "}"
-            or firstword == "elseif"
-            or firstword == "else"
-            or firstword == "catch"
-        ):
-            pass
+            return 'stop'
+        elif line.strip() == "":
+            return 'nop', None
         else:
             for func in self.overloads.get("afterprocess", []):
-                if func(self, line, linenum, Object, file):
-                    return
-            self.evaluate(line)
+                x = func(self, line, linenum, Object, file)
+                if x is not None: return x
+            return 'eval', line
 
     @staticmethod
     def throw(
@@ -1293,9 +1369,16 @@ class LumaInterpreter:
             orig_vars = set(varsholder.keys())
             r = None
             if type(self.body) is str:
-                r = interpreter.runsubprogram(
-                    self.body, realfunc=True, line1=self.line + 1, file=self.file
-                )
+                try:
+                    r = interpreter.runsubprogram(
+                        self.body, line=self.line + 1, file=self.file
+                    )
+                except LumaInterpreter.SubProgramExitCode as e:
+                    if e.code == 'return':
+                        r = e.data
+                    else: raise LumaInterpreter.SubProgramExitCode(e.code, e.data) from e
+                else:
+                    r = LumaInterpreter().evaluate('null')
             elif callable(self.body):
                 if argdict:
                     r = self.body(**argdict)
