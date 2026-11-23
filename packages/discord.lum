@@ -1,1 +1,1 @@
-extend "packages:@pylibs/lumadiscord.py"
+extend "packages:@pylibs/lumadiscord.py";

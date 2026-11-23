@@ -1,1 +1,1 @@
-extend "packages:@pylibs/example.py"
+extend "packages:@pylibs/example.py";

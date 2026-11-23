@@ -78,7 +78,7 @@ class LumaInterpreter:
         "**": operator.pow,
     }
     NUMBER_RE = re.compile(r"^[+-]?\d+(\.\d+)?$")
-    SAVED_KEYWORDS: list[str] = [
+    SAVED_KEYWORDS: list[LiteralString] = [
         "set",
         "to",
         "function",
@@ -105,6 +105,17 @@ class LumaInterpreter:
         "lambda",
         "typeof",
     ]
+    OPEN_BLOCK: list[LiteralString] = [
+        'class',
+        'if',
+        'elseif',
+        'while',
+        'try',
+        'catch',
+        'constructor',
+        'catch',
+        'else',
+    ]
     tb: list[tuple[int, str, str]] = []
     overloads: dict[str, list[Callable]] = {}
     overrides: dict[str, list[Callable]] = {}
@@ -117,6 +128,17 @@ class LumaInterpreter:
         return cls._instance
 
     def run(self, program: str, filename: str):
+        log = ':log.txt'
+        if getattr(sys, "frozen", False):
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+        base_dir = os.path.dirname(base_dir)
+        log = os.path.join(base_dir, log[: log.find(":")], log[log.find(":") + 1 :])
+        try:
+            with open(log, 'w') as logger:
+                logger.write('')
+        except FileNotFoundError: pass
         self.runext("builtins:@pylibs/lumastring.py") # so I could import in luma
         self.filename = filename
         self.scopes.append(program)
@@ -181,42 +203,66 @@ class LumaInterpreter:
 
     @staticmethod
     def preprocess(prog: str):
-        lines = prog.splitlines()
-        i = 0
-        while i < len(lines):
-            line = lines[i]
-            if "/*" in line and "*/" in line:
-                lines[i] = line[: line.find("/*")] + line[line.find("*/") + 2 :]
-                continue
-            if "/*" in line:
-                lines[i] = line[: line.find("/*")]
-                c = i + 1
-                while True:
-                    if "*/" in lines[c]:
-                        break
-                    else:
-                        del lines[c]
-                lines[c] = lines[c][lines[c].find("*/") + 2 :]
-                continue
-            i += 1
-        i = 0
-        while i < len(lines):
-            line = lines[i]
-            if "//" in line:
-                lines[i] = line[: line.find("//")]
-                continue
-            i += 1
-        i = 0
-        while i < len(lines):
-            line = lines[i]
-            if "; " in line:
-                spacenum = len(line) - len(line.lstrip())
-                lines[i] = line[: line.find("; ")]
-                lines.insert(i + 1, " " * spacenum + line[line.find("; ") + 2 :])
-            if line.endswith(";"):
-                lines[i] = line[:-1]
-            i += 1
-        return "\n".join(lines)
+        for func in LumaInterpreter().overrides.get("preprocess", []):
+            return func(prog)
+        processed = ''
+        word = ''
+        instring = ''
+        inlinecomment = False
+        linecomment = False
+        openblock = False
+        for i in range(len(prog)):
+            if (not inlinecomment) and (not linecomment):
+                if prog[i] == ';' and not instring:
+                    word = ''
+                    processed += '\n'
+                else:
+                    if instring == '' and prog[i] in ('"', "'"):
+                        instring = prog[i]
+                    elif instring == prog[i]:
+                        instring = ''
+                    if prog[i] != ' ':
+                        word += prog[i]
+                    if openblock and prog[i] == '{':
+                        processed += prog[i]
+                        processed += '\n'
+                        word = ''
+                        openblock = False
+                        continue
+                    if word == '//' and not instring:
+                        linecomment = True
+                        processed = processed[:-1]
+                        word = ''
+                        continue
+                    if word == '/*' and not instring:
+                        inlinecomment = True
+                        processed = processed[:-1]
+                        word = ''
+                        continue
+                    if prog[i] in (' ', '\n'):
+                        if word in LumaInterpreter.OPEN_BLOCK:
+                            openblock = True
+                        word = ''
+                    if prog[i] == ' ' and not instring:
+                        if processed and processed[-1] == ' ':
+                            continue
+                    processed += prog[i]
+            else:
+                if prog[i] in ('*', '/'): word += prog[i]
+                if prog[i] == '\n' and linecomment:
+                    processed += '\n'
+                    word = ''
+                    linecomment = False
+                if word == '*/' and inlinecomment:
+                    inlinecomment = False
+                    processed += ' '
+                    word = ''
+        lines = processed.splitlines()
+        res = []
+        for line in lines:
+            if line.strip():
+                res.append(line.strip())
+        return '\n'.join(res)
 
     def runimport(self, module: str, name: str, Object=None, relative: str = "."):
         if ":" in module:
@@ -402,8 +448,6 @@ class LumaInterpreter:
         if Object is None:
             Object = self
         subprogram = LumaInterpreter.preprocess(subprogram)
-        subprogram = subprogram.splitlines()
-        subprogram = "\n".join(subprogram)
         self.scopes.append(subprogram)
         self.env[-1]['@file'] = self.env[0]['str'].instance([file])
         try:
@@ -454,7 +498,7 @@ class LumaInterpreter:
                                 line + 1,
                                 file,
                             )
-                            ln += len(lines) + 1 if body else 0
+                            ln += len(lines) + 1
                         case 'throw':
                             exc: LumaInterpreter.InstancedLumaObject = self.evaluate(code[1])
                             exc.callmethod("trigger", [])
@@ -482,7 +526,7 @@ class LumaInterpreter:
                             varis[class_name].children = code[3]
                             varis[class_name].parents.append(parent)
                             self.runsubprogram(body, varis[class_name], line=line + 1, file=file)
-                            ln += len(lines) + 1 if body else 0
+                            ln += len(lines) + 1
                         case 'constructor':
                             body = ""
                             scp = 1
@@ -502,7 +546,7 @@ class LumaInterpreter:
                             varis["constructor"] = self.LumaFunction(
                                 "constructor", code[1], body, line + 1, file
                             )
-                            ln += len(lines) + 1 if body else 0
+                            ln += len(lines) + 1
                         case 'setchild':
                             self.evaluate(code[1]).children[code[2]] = code[3]
                         case 'set':
@@ -539,7 +583,7 @@ class LumaInterpreter:
                             body = body.strip()
                             if subline.endswith('}'):
                                 body = ""
-                            linenu = int(line) + (len(body.splitlines()) + 1 if body else 0 ) + 1
+                            linenu = int(line) + len(body.splitlines()) + 2
                             offset = linenu - line
                             sline = ""
                             try:
@@ -600,7 +644,7 @@ class LumaInterpreter:
                                 if not caught:
                                     raise e from None
                                 self.tb.pop()
-                            ln += offset
+                            ln += offset - 1
                         case 'if':
                             offset = 0
                             body = ""
@@ -719,7 +763,7 @@ class LumaInterpreter:
                                         continue
                                     else:
                                         raise LumaInterpreter.SubProgramExitCode(e.code, e.data)
-                            ln += len(lines) + 1 if body else 0
+                            ln += len(lines) + 1
                         case 'return':
                             r = self.evaluate(code[1] if code[1] else 'null')
                             raise LumaInterpreter.SubProgramExitCode('return', r)
@@ -753,8 +797,10 @@ class LumaInterpreter:
 
     @staticmethod
     def log(msg: str):
-        with open('./log.txt', 'a') as f:
-            f.write(f'\n{msg}')
+        with open('./log.txt', 'r+') as f:
+            if f.read():
+                f.write('\n')
+            f.write(str(msg))
 
     def process(
         self,
@@ -774,7 +820,6 @@ class LumaInterpreter:
             varis = self.env[-1]
         else:
             varis = Object.children
-        program = self.scopes[-1]
         firstword = LumaInterpreter.getfirstword(line)
         if firstword == "function":
             func_name = line[9 : line.find("(")].strip()
@@ -892,7 +937,6 @@ class LumaInterpreter:
         if rawargs == "":
             return []
         splitted = LumaInterpreter.smrtsplt(rawargs, ",")
-        if funcname == 'swap': return splitted
         return [self.evaluate(arg.strip()) for arg in splitted]
 
     @staticmethod
@@ -1216,7 +1260,7 @@ class LumaInterpreter:
             instancename = ".".join(dotparts[0:-1])
             propertyname = dotparts[-1]
             instance: LumaInterpreter.InstancedLumaObject = self.evaluate(instancename)
-            if instance is not None:
+            if type(instance) is LumaInterpreter.InstancedLumaObject:
                 if propertyname in instance.children.keys():
                     r = instance.children[propertyname]
                     if isinstance(r, LumaInterpreter.LumaFunction):
@@ -1230,13 +1274,19 @@ class LumaInterpreter:
             else:
                 LumaInterpreter.throw(
                     self.env[0]["typeError"],
-                    "nullType object has no attributes",
+                    f"<python object {repr(instance)}> object has no attributes"
                 )
         else:
-            LumaInterpreter.throw(
-                self.env[0]["nameError"],
-                f"undefined variable or function '{firstword}'",
-            )
+            if all((c.isalnum() or c == '_') for c in firstword):
+                LumaInterpreter.throw(
+                    self.env[0]["nameError"],
+                    f"undefined variable or function '{firstword}'",
+                )
+            else:
+                LumaInterpreter.throw(
+                        self.env[0]["syntaxError"],
+                        f"wrong syntax near '{firstword}'",
+                    )
 
     class LumaClass:
         def __init__(self, name: str, parents: list[str] | None = None):

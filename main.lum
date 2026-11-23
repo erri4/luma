@@ -1,57 +1,67 @@
-extend "packages:forloops.py"
-import "lib:math.lum" as math
-import "lib:files.lum"
+extend "packages:forloops.py";import "lib:math.lum" as math;import "lib:files.lum";class test{set x to 123;}
+// comment
 
-class test{
-    set x to 123
-}
+/* multiline
+comment */
 
 if (@main){
-    set i to 0
-    show(i)
-    i++
-    show(i)
-    show(math.pi)
-    show(math.cos(math.pi))
+    set i to 0;
+    show(i);
+    i++;
+    show(i);
+    show(math.pi);
+    show(math.cos(math.pi));
     if (math.cos(math.pi) == -1.0){
-        show("hello")
+        show("hello");
     }
-    show(true == true)
-    show(false == false)
+    show(true == true);
+    show(false == false);
 
-    set lst to []
-    show(lst)
-    lst.add(123)
-    lst.add("gagagag")
-    show(lst)
-    lst.clear()
-    show(lst)
-    show(@file)
-    show(@main)
-    set x to 45
+    set lst to [];
+    show(lst);
+    lst.add(123);
+    lst.add("gagagag");
+    show(lst);
+    lst.clear();
+    show(lst);
+    show(@file);
+    show(@main);
+    set x to 45;
     if (x == 31){
-        show("case 1")
+        show("case 1");
     }
     elseif (x == 45){
-        show("case 2")
+        show("case 2");
     }
     else {
-        show("case 3")
+        show("case 3");
     }
-    show((new test()).x)
-}
-try{
-    throw new baseError("asd")
-}
-catch (baseError as abc){
-    show("b e" + new str(abc))
-}
-catch (syntaxError){
-    show(123123)
-}
+    show((new test()).x);
+    
+    try{
+        throw new baseError("asd");
+    }
+    catch (baseError as abc){
+        show("b e: " + new str(abc));
+    }
+    catch (syntaxError){
+        show(123123);
+    }
 
-set f to new file("./log.txt")
-show(f.read())
-for (set i to 0, i < 10, i++){
-    show(i)
+    set f to new file("./log.txt");
+    show(f.read());
+    for (set i to 0, i < 10, i++){show(i);}
+    show(show());
+    show(math.gcd(10, 12));
+    show(math.fibonacci(12));
+    set abc to {"abc": 123, "asdasd": 456};
+    show(abc["abc"]);
+    show({"dfg": 456, "jkl": "jkjk"});
+    show(typeof abc);
+    show(typeof {"dfg": 456, "jkl": "jkjk"});
+    show(typeof typeof {"dfg": 456, "jkl": "jkjk"});
+    show(typeof typeof typeof {"dfg": 456, "jkl": "jkjk"});
+    show("big " + /*hmmmmm*/ "test")
 }
+for (set i to 0, i < 10, i++){show(i);}
+show("test");

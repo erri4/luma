@@ -1,31 +1,33 @@
-extend "lib:@pylibs/lumamath.py"
+extend "lib:@pylibs/lumamath.py";
 
 function fibonacci(num){
     if (num <= 0){
-        return 0
+        return 0;
     }
-    set count to 2
-    set a to 1
-    set b to 1
+    set count to 2;
+    set a to 1;
+    set b to 1;
     while (count < num){
-        set b to a + b
-        set a to b - a
-        set count to count + 1
+        set b to a + b;
+        set a to b - a;
+        set count to count + 1;
     }
-    return b
+    return b;
 }
 
 function gcd(a, b){
     if (a < b){
-        swap(a, b)
+        set tmp to a;
+        set a to b;
+        set b to tmp;
     }
-    set prev to 1
-    set r to 1
+    set prev to 1;
+    set r to 1;
     while (r > 0){
-        set prev to r
-        set r to a % b
-        set a to b
-        set b to r
+        set prev to r;
+        set r to a % b;
+        set a to b;
+        set b to r;
     }
-    return prev
+    return prev;
 }

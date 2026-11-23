@@ -6,7 +6,7 @@ I am not planning anything for this language, and it probably has many hidden bu
 The name has no source.
 
 ## Features and syntax
-In luma, both curly braces and indents are necessary, don't forget them.
+Please use `;` after eaech line.
 ### Variables
 This is an OOP language, very similar to python. A variable does not have a constant type, like python it can be any type and everything is dynamic.
 For example, declaring/updating a variable:
@@ -189,4 +189,14 @@ If you do want to change the interpreter midrun, there are two cases:
 
 <br>
 
-I am too lazy to make a good documentation on this subject. Please try to read the example given (`packages:forloops.py`) and understand the syntax.
+Override supported:
+ - `process`
+ - `preprocess`
+ - `evaluate`
+
+Overload supported:
+ - `beforeprocess`
+ - `afterprocess`
+ - `subprogram`
+
+To do any of those things, use the given class in `LumaExtBundle.py`.
